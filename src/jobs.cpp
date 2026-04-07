@@ -28,8 +28,8 @@ namespace slurm {
     if (cleareds == clearedhdr) return operator>>( ins, job );
 
     namespace fmt = detail::Jobs;
-    job.id        = s.substr( fmt::JOBID_START,      fmt::JOBID_WIDTH );
-    job.partition = s.substr( fmt::PARTITION_START,  fmt::PARTITION_WIDTH );
+    job.id        = s.substr( fmt::JOBID_START,       fmt::JOBID_WIDTH );
+    job.partition = s.substr( fmt::PARTITION_START,   fmt::PARTITION_WIDTH );
     job.name      = s.substr( fmt::NAME_START,        fmt::NAME_WIDTH );
     job.user      = s.substr( fmt::USER_START,        fmt::USER_WIDTH );
     job.account   = s.substr( fmt::ACC_START,         fmt::ACC_WIDTH );

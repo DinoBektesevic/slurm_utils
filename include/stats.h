@@ -6,10 +6,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 
 #include "consts.h"
+#include "colors.h"
 #include "jobs.h"
 #include "jobstatus.h"
 
@@ -76,23 +78,35 @@ namespace slurm {
       w = std::max(w, static_cast<int>(s->key.size()));
     w += 2;
 
-    auto header = [&]() {
-      outs << std::setw(w)  << col.label   << std::setw(10) << "TOTAL";
-      outs << std::setw(10) << "RUNNING"   << std::setw(10) << "PENDING";
-      outs << std::setw(10) << "SUSPENDED" << std::setw(10) << "STOPPED" << "\n";
+    auto header = [&]() -> std::string {
+      std::ostringstream s_hdr;
+      s_hdr << std::setw(w)  << col.label   << std::setw(10) << "TOTAL";
+      s_hdr << std::setw(10) << "RUNNING"   << std::setw(10) << "PENDING";
+      s_hdr << std::setw(10) << "SUSPENDED" << std::setw(10) << "STOPPED";
+      return s_hdr.str();
     };
 
-    header();
+    auto color = [](const std::string& row, const sptr_stat<KeyFn>& s) -> std::string {
+      int running = s->jstates[JobStates::RUNNING];
+      int pending = s->jstates[JobStates::PENDING];
+      if      (running == 0)                     return Colors.inactive(row);
+      else if ((double)pending / s->njobs > 0.8) return Colors.critical(row);
+      else if ((double)pending / s->njobs > 0.4) return Colors.warning(row);
+      else                                       return Colors.healthy(row);
+    };
+
+    outs << header() << "\n";
     for (const auto& s : col.stats) {
-      outs << std::setw(w)  << std::right << s->key;
-      outs << std::setw(10) << std::right << s->njobs;
-      outs << std::setw(10) << std::right << s->jstates[JobStates::RUNNING];
-      outs << std::setw(10) << std::right << s->jstates[JobStates::PENDING];
-      outs << std::setw(10) << std::right << s->jstates[JobStates::SUSPENDED];
-      outs << std::setw(10) << std::right << s->jstates[JobStates::STOPPED];
-      outs << "\n";
+      std::ostringstream oss;
+      oss << std::setw(w)  << std::right << s->key;
+      oss << std::setw(10) << std::right << s->njobs;
+      oss << std::setw(10) << std::right << s->jstates[JobStates::RUNNING];
+      oss << std::setw(10) << std::right << s->jstates[JobStates::PENDING];
+      oss << std::setw(10) << std::right << s->jstates[JobStates::SUSPENDED];
+      oss << std::setw(10) << std::right << s->jstates[JobStates::STOPPED];
+      outs << color(oss.str(), s) << "\n";
     }
-    header();
+    outs << header() << "\n";
 
     return outs;
   }
