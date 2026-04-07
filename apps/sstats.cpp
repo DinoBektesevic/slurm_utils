@@ -15,15 +15,18 @@ int main(int argc, char** argv) {
   app.require_subcommand(1);
 
   std::string sort_by = "running";
-  bool        reverse = false;
+  std::string theme = "dark";
+  bool reverse = false;
+
+  app.add_option("--theme", theme, "Chose theme: dark, light, none");
 
   auto* accounts = app.add_subcommand("accounts", "Job counts grouped by account");
-  accounts->add_option("--sort",    sort_by, "Sort by: running, pending, total, name");
-  accounts->add_flag(  "--reverse", reverse, "Reverse sort order");
+  accounts->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
+  accounts->add_flag("--reverse", reverse, "Reverse sort order");
 
   auto* users = app.add_subcommand("users", "Job counts grouped by user");
-  users->add_option("--sort",    sort_by, "Sort by: running, pending, total, name");
-  users->add_flag(  "--reverse", reverse, "Reverse sort order");
+  users->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
+  users->add_flag("--reverse", reverse, "Reverse sort order");
 
   CLI11_PARSE(app, argc, argv);
 
