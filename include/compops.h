@@ -2,49 +2,44 @@
 #define SLURM_COMPOPS_H
 
 #include <algorithm>
+#include <memory>
 
 #include "consts.h"
-#include "jobs.h"
-#include "users.h"
-#include "accounts.h"
-
+#include "stats.h"
 
 namespace slurm {
-   [[maybe_unused]] struct {
-    bool operator()(const Job& a, const Job& b) const { return a.user < b.user; }
-    bool operator()(const UserStat& a, const Job& b) const { return a.user < b.user; }
-    bool operator()(const Job& a, const UserStat& b) const { return a.user < b.user; }
-    bool operator()(const UserStat& a, const UserStat& b) const { return a.user < b.user; }
-    bool operator()(const std::shared_ptr<UserStat> a, const std::shared_ptr<UserStat> b) const { return a->user < b->user; }
-  } CompareUsers ;
 
-   [[maybe_unused]] struct {
-    bool operator()(const UserStat& a, const UserStat& b) const { return a.njobs < b.njobs; }
-    bool operator()(const std::shared_ptr<UserStat> a, const std::shared_ptr<UserStat> b) const { return a->njobs < b->njobs; }
-  } CompareNJobs ;
+  [[maybe_unused]] struct {
+    template<typename KeyFn>
+    bool operator()(const sptr_stat<KeyFn>& a,
+                    const sptr_stat<KeyFn>& b) const {
+      return a->key < b->key;
+    }
+  } CompareKey;
 
-   [[maybe_unused]] struct {
-    bool operator()(const std::shared_ptr<UserStat> a, const std::shared_ptr<UserStat> b) const
-    {  return a->jstates[slurm::JobStates::RUNNING] < b->jstates[slurm::JobStates::RUNNING]; }
+  [[maybe_unused]] struct {
+    template<typename KeyFn>
+    bool operator()(const sptr_stat<KeyFn>& a,
+                    const sptr_stat<KeyFn>& b) const {
+      return a->njobs < b->njobs;
+    }
+  } CompareNJobs;
 
-    bool operator()(const std::shared_ptr<AccountStat> a, const std::shared_ptr<AccountStat> b) const
-    {  return a->jstates[slurm::JobStates::RUNNING] < b->jstates[slurm::JobStates::RUNNING]; }
+  [[maybe_unused]] struct {
+    template<typename KeyFn>
+    bool operator()(const sptr_stat<KeyFn>& a,
+                    const sptr_stat<KeyFn>& b) const {
+      return a->jstates[slurm::JobStates::RUNNING] < b->jstates[slurm::JobStates::RUNNING];
+    }
   } CompareNRunning;
 
-   [[maybe_unused]] struct {
-    bool operator()(const std::shared_ptr<UserStat> a, const std::shared_ptr<UserStat> b) const
-    {  return a->jstates[slurm::JobStates::PENDING] < b->jstates[slurm::JobStates::PENDING]; }
-
-    bool operator()(const std::shared_ptr<AccountStat> a, const std::shared_ptr<AccountStat> b) const
-    {  return a->jstates[slurm::JobStates::PENDING] < b->jstates[slurm::JobStates::PENDING]; }
+  [[maybe_unused]] struct {
+    template<typename KeyFn>
+    bool operator()(const sptr_stat<KeyFn>& a,
+                    const sptr_stat<KeyFn>& b) const {
+      return a->jstates[slurm::JobStates::PENDING] < b->jstates[slurm::JobStates::PENDING];
+    }
   } CompareNPending;
 
-   [[maybe_unused]] struct {
-    bool operator()(const std::shared_ptr<AccountStat> a, const std::shared_ptr<AccountStat> b) const {
-      using slurm::JobStates;
-      return a->account < b->account;
-    }
-  } CompareAccounts;
-
 } // namespace slurm
-#endif // COMPOPS_H
+#endif // SLURM_COMPOPS_H

@@ -33,7 +33,7 @@ namespace slurm {
     job.name      = s.substr( fmt::NAME_START,        fmt::NAME_WIDTH );
     job.user      = s.substr( fmt::USER_START,        fmt::USER_WIDTH );
     job.account   = s.substr( fmt::ACC_START,         fmt::ACC_WIDTH );
-    job.st        = s.substr( fmt::ST_START,          fmt::ST_WIDTH );
+    job.state     = s.substr( fmt::ST_START,          fmt::ST_WIDTH );
     job.time      = s.substr( fmt::TIME_START,        fmt::TIME_WIDTH );
     job.tlim      = s.substr( fmt::TLIM_START,        fmt::TLIM_WIDTH );
     job.nodes     = *slurm::utils::string_to<int>( s.substr(fmt::NODES_START, fmt::NODES_WIDTH) );

@@ -7,8 +7,6 @@
 
 namespace slurm::utils {
 
-  // string_to must stay in the header: templates need their body visible
-  // at the call site so the compiler can instantiate them for each type T.
   template <typename T>
   std::optional<T> string_to( const std::string& s ) {
     T value;
