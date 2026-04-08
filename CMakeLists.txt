@@ -34,11 +34,15 @@ include(GitSubmodules)
 ############################################################
 #                               External packages
 ############################################################
-option(GIT_SUBMODULE "Check submodules during build" ON)
+# option(GIT_SUBMODULE "Check submodules during build" ON)
 get_submodules() # needs git
 check_submodule_exists(CLI11)
+check_submodule_exists(json)
 
 add_subdirectory(extern/CLI11)
+add_subdirectory(extern/json)
+
+option(WITH_JSON_INPUT "Enable JSON input via squeue --json (requires SLURM 21.08+)" ON)
 
 ############################################################
 #                               Targets
@@ -55,6 +59,11 @@ target_link_libraries(sstats PRIVATE
   slurm_utils
   CLI11::CLI11
 )
+
+if(WITH_JSON_INPUT)
+  target_compile_definitions(sstats PRIVATE WITH_JSON_INPUT)
+  target_link_libraries(sstats PRIVATE nlohmann_json::nlohmann_json)
+endif()
 
 install(TARGETS sstats RUNTIME DESTINATION bin)
 

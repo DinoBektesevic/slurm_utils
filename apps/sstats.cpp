@@ -33,9 +33,15 @@ int main(int argc, char** argv) {
   // global singleton overwrite
   slurm::Colors = slurm::ColorScheme(theme);
 
+#ifdef WITH_JSON_INPUT
+  std::string query = "squeue " + std::string(slurm::JsonParser::SQUEUE_FORMAT);
+  std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
+  slurm::JsonParser parser;
+#else
   std::string query = "squeue " + std::string(slurm::FixedWidthParser::SQUEUE_FORMAT);
   std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
   slurm::FixedWidthParser parser;
+#endif
   slurm::Jobs jobs = parser(squeueout);
 
   auto apply_sort = [&](auto& stats) {

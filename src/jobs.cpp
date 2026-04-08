@@ -41,10 +41,5 @@ namespace slurm {
     return ins;
   }
 
-  std::istream& operator>>( std::istream& ins, Jobs& jobs ) {
-    Job job;
-    while (ins >> job) jobs.push_back( job );
-    return ins;
-  }
 
 } // namespace slurm
