@@ -7,8 +7,9 @@
 namespace slurm::utils {
 
   std::string trim( const std::string& s ) {
-    auto R = s.find_last_not_of ( " \f\n\r\t\v" ) + 1;
     auto L = s.find_first_not_of( " \f\n\r\t\v" );
+    if (L == std::string::npos) return "";
+    auto R = s.find_last_not_of( " \f\n\r\t\v" ) + 1;
     return s.substr( L, R-L );
   }
 
