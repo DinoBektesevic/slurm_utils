@@ -46,6 +46,7 @@ add_subdirectory(extern/CLI11)
 add_library(slurm_utils STATIC
   src/utils.cpp
   src/jobs.cpp
+  src/jobstatus.cpp
 )
 target_include_directories(slurm_utils PUBLIC include/)
 

@@ -31,16 +31,12 @@ namespace slurm {
     };
 
     void noop(){
-      auto noop = [](const std::string& s) { return s; };
-      healthy = warning = critical = inactive = header = noop;
+      auto identity = [](const std::string& s) { return s; };
+      healthy = warning = critical = inactive = header = identity;
     };
 
     ColorScheme(std::string theme) {
-      if (!isatty(STDOUT_FILENO)) {
-        auto noop = [](const std::string& s) { return s; };
-        healthy = warning = critical = inactive = header = noop;
-        return;
-      }
+      if (!isatty(STDOUT_FILENO)) { noop(); return; }
 
       if (theme == "dark"){
         dark();

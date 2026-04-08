@@ -26,12 +26,14 @@ namespace slurm {
     Entry() : key("default"), njobs(-1) {}
 
     Entry(const Job& job, KeyFn keyfn) : key(keyfn(job)), njobs(1) {
-      jstates[slurm::JobStatus[job.state]] += 1;
+      auto idx = slurm::JobStatus[job.state];
+      if (idx) jstates[*idx] += 1;
     }
 
     void update(const Job& job) {
       njobs += 1;
-      jstates[slurm::JobStatus[job.state]] += 1;
+      auto idx = slurm::JobStatus[job.state];
+      if (idx) jstates[*idx] += 1;
     }
   };
 

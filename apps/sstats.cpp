@@ -8,7 +8,7 @@
 #include "consts.h"
 #include "stats.h"
 #include "utils.h"
-
+#include "parser.h"
 
 int main(int argc, char** argv) {
   CLI::App app{"SLURM statistics utilities"};
@@ -33,10 +33,10 @@ int main(int argc, char** argv) {
   // global singleton overwrite
   slurm::Colors = slurm::ColorScheme(theme);
 
-  std::string query = "squeue " + slurm::FORMAT_STRING;
+  std::string query = "squeue " + std::string(slurm::FixedWidthParser::SQUEUE_FORMAT);
   std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
-  slurm::Jobs jobs;
-  squeueout >> jobs;
+  slurm::FixedWidthParser parser;
+  slurm::Jobs jobs = parser(squeueout);
 
   auto apply_sort = [&](auto& stats) {
     if      (sort_by == "pending") std::sort(stats.begin(), stats.end(), slurm::CompareNPending);

@@ -21,13 +21,13 @@ namespace slurm {
     auto end_pos = std::remove( cleareds.begin(), cleareds.end(), ' ' );
     cleareds.erase( end_pos, cleareds.end() );
 
-    auto clearedhdr = detail::Jobs::FILE_HEADER;
+    auto clearedhdr = slurm::detail::FixedWidth::FILE_HEADER;
     end_pos = std::remove( clearedhdr.begin(), clearedhdr.end(), ' ' );
     clearedhdr.erase( end_pos, clearedhdr.end() );
 
     if (cleareds == clearedhdr) return operator>>( ins, job );
 
-    namespace fmt = detail::Jobs;
+    namespace fmt = detail::FixedWidth;
     job.id        = s.substr( fmt::JOBID_START,       fmt::JOBID_WIDTH );
     job.partition = s.substr( fmt::PARTITION_START,   fmt::PARTITION_WIDTH );
     job.name      = s.substr( fmt::NAME_START,        fmt::NAME_WIDTH );

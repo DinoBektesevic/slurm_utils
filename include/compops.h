@@ -9,7 +9,7 @@
 
 namespace slurm {
 
-  [[maybe_unused]] struct {
+  struct [[maybe_unused]] {
     template<typename KeyFn>
     bool operator()(const sptr_stat<KeyFn>& a,
                     const sptr_stat<KeyFn>& b) const {
@@ -17,7 +17,7 @@ namespace slurm {
     }
   } CompareKey;
 
-  [[maybe_unused]] struct {
+  struct [[maybe_unused]] {
     template<typename KeyFn>
     bool operator()(const sptr_stat<KeyFn>& a,
                     const sptr_stat<KeyFn>& b) const {
@@ -25,7 +25,7 @@ namespace slurm {
     }
   } CompareNJobs;
 
-  [[maybe_unused]] struct {
+  struct [[maybe_unused]] {
     template<typename KeyFn>
     bool operator()(const sptr_stat<KeyFn>& a,
                     const sptr_stat<KeyFn>& b) const {
@@ -33,7 +33,7 @@ namespace slurm {
     }
   } CompareNRunning;
 
-  [[maybe_unused]] struct {
+  struct [[maybe_unused]] {
     template<typename KeyFn>
     bool operator()(const sptr_stat<KeyFn>& a,
                     const sptr_stat<KeyFn>& b) const {
