@@ -19,7 +19,6 @@ int main(int argc, char** argv) {
   bool reverse = false;
 
   app.add_option("--theme", theme, "Chose theme: dark, light, none");
-  slurm::Colors = slurm::ColorScheme(theme);  // global singleton
 
   auto* accounts = app.add_subcommand("accounts", "Job counts grouped by account");
   accounts->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
@@ -30,6 +29,9 @@ int main(int argc, char** argv) {
   users->add_flag("--reverse", reverse, "Reverse sort order");
 
   CLI11_PARSE(app, argc, argv);
+
+  // global singleton overwrite
+  slurm::Colors = slurm::ColorScheme(theme);
 
   std::string query = "squeue " + slurm::FORMAT_STRING;
   std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
