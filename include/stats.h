@@ -10,36 +10,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "columns.h"
 #include "consts.h"
 #include "colors.h"
 #include "jobs.h"
-#include "jobstatus.h"
 
 namespace slurm {
-
-  template<typename KeyFn>
-  struct Entry {
-    std::string key;
-    int         njobs;
-    std::array<int, slurm::JobStates::NSTATES> jstates{};
-
-    Entry() : key("default"), njobs(-1) {}
-
-    Entry(const Job& job, KeyFn keyfn) : key(keyfn(job)), njobs(1) {
-      auto idx = slurm::JobStatus[job.state];
-      if (idx) jstates[*idx] += 1;
-    }
-
-    void update(const Job& job) {
-      njobs += 1;
-      auto idx = slurm::JobStatus[job.state];
-      if (idx) jstates[*idx] += 1;
-    }
-  };
-
-  template<typename KeyFn>
-  using sptr_stat = std::shared_ptr<Entry<KeyFn>>;
-
+  
   template<typename KeyFn>
   struct StatCollection {
 
@@ -75,16 +52,21 @@ namespace slurm {
 
   template<typename KeyFn>
   std::ostream& operator<<(std::ostream& outs, const StatCollection<KeyFn>& col) {
-    int w = static_cast<int>(col.label.size());
+    const auto& cols = KeyFn::columns();
+
+    // Key column width is dynamic — expand to fit the longest key
+    int key_w = static_cast<int>(std::string(KeyFn::label).size()) + 2;
     for (const auto& s : col.stats)
-      w = std::max(w, static_cast<int>(s->key.size()));
-    w += 2;
+      key_w = std::max(key_w, static_cast<int>(s->key.size()) + 2);
+
+    auto col_w = [&](const StatColumn<KeyFn>& c) {
+      return (c.id == ColumnID::Key) ? key_w : c.width;
+    };
 
     auto header = [&]() -> std::string {
       std::ostringstream s_hdr;
-      s_hdr << std::setw(w)  << col.label   << std::setw(10) << "TOTAL";
-      s_hdr << std::setw(10) << "RUNNING"   << std::setw(10) << "PENDING";
-      s_hdr << std::setw(10) << "SUSPENDED" << std::setw(10) << "STOPPED";
+      for (const auto& c : cols)
+        s_hdr << std::setw(col_w(c)) << c.label;
       return s_hdr.str();
     };
 
@@ -100,12 +82,8 @@ namespace slurm {
     outs << header() << "\n";
     for (const auto& s : col.stats) {
       std::ostringstream oss;
-      oss << std::setw(w)  << std::right << s->key;
-      oss << std::setw(10) << std::right << s->njobs;
-      oss << std::setw(10) << std::right << s->jstates[JobStates::RUNNING];
-      oss << std::setw(10) << std::right << s->jstates[JobStates::PENDING];
-      oss << std::setw(10) << std::right << s->jstates[JobStates::SUSPENDED];
-      oss << std::setw(10) << std::right << s->jstates[JobStates::STOPPED];
+      for (const auto& c : cols)
+        oss << std::setw(col_w(c)) << std::right << c.extract(s);
       outs << color(oss.str(), s) << "\n";
     }
     outs << header() << "\n";
@@ -117,16 +95,76 @@ namespace slurm {
 
   struct AccountKeyFn {
     static constexpr const char* label = "ACCOUNT";
+
     std::string operator()(const Job& job) const { return job.account; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "…";
+    }
+
+    static const std::vector<StatColumn<AccountKeyFn>>& columns() {
+      static const std::vector<StatColumn<AccountKeyFn>> cols = {
+        col_key<AccountKeyFn>,
+        col_total<AccountKeyFn>,
+        col_running<AccountKeyFn>,
+        col_pending<AccountKeyFn>,
+        col_suspended<AccountKeyFn>,
+        col_stopped<AccountKeyFn>,
+      };
+      return cols;
+    }
   };
 
   struct UserKeyFn {
     static constexpr const char* label = "USER";
+
     std::string operator()(const Job& job) const { return job.user; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "…";
+    }
+
+    static const std::vector<StatColumn<UserKeyFn>>& columns() {
+      static const std::vector<StatColumn<UserKeyFn>> cols = {
+        col_key<UserKeyFn>,
+        col_total<UserKeyFn>,
+        col_running<UserKeyFn>,
+        col_pending<UserKeyFn>,
+        col_suspended<UserKeyFn>,
+        col_stopped<UserKeyFn>,
+      };
+      return cols;
+    }
   };
 
-  using AccountStats = StatCollection<AccountKeyFn>;
-  using UserStats    = StatCollection<UserKeyFn>;
+  struct PartitionKeyFn {
+    static constexpr const char* label = "PARTITION";
+
+    std::string operator()(const Job& job) const { return job.partition; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "…";
+    }
+
+    static const std::vector<StatColumn<PartitionKeyFn>>& columns() {
+      static const std::vector<StatColumn<PartitionKeyFn>> cols = {
+        col_key<PartitionKeyFn>,
+        col_total<PartitionKeyFn>,
+        col_running<PartitionKeyFn>,
+        col_pending<PartitionKeyFn>,
+        col_suspended<PartitionKeyFn>,
+        col_stopped<PartitionKeyFn>,
+      };
+      return cols;
+    }
+  };
+
+  using AccountStats   = StatCollection<AccountKeyFn>;
+  using UserStats      = StatCollection<UserKeyFn>;
+  using PartitionStats = StatCollection<PartitionKeyFn>;
 
 } // namespace slurm
 #endif // SLURM_STATS_H

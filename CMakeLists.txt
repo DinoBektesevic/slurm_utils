@@ -42,23 +42,22 @@ check_submodule_exists(json)
 add_subdirectory(extern/CLI11)
 add_subdirectory(extern/json)
 
-option(WITH_JSON_INPUT "Enable JSON input via squeue --json (requires SLURM 21.08+)" ON)
+option(WITH_JSON_INPUT "Enable JSON input via squeue --json (requires SLURM 21.08+)" OFF)
 
 ############################################################
 #                               Targets
 ############################################################
-add_library(slurm_utils STATIC
+add_executable(sstats
+  apps/sstats.cpp
   src/utils.cpp
   src/jobs.cpp
-  src/jobstatus.cpp
 )
-target_include_directories(slurm_utils PUBLIC include/)
+target_include_directories(sstats PRIVATE include/)
+target_link_libraries(sstats PRIVATE CLI11::CLI11)
 
-add_executable(sstats apps/sstats.cpp)
-target_link_libraries(sstats PRIVATE
-  slurm_utils
-  CLI11::CLI11
-)
+# Link C++ runtime and libgcc statically so the binary runs on nodes
+# with a different GCC version without needing to copy .so files over.
+target_link_options(sstats PRIVATE -static-libstdc++ -static-libgcc)
 
 if(WITH_JSON_INPUT)
   target_compile_definitions(sstats PRIVATE WITH_JSON_INPUT)

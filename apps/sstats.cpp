@@ -28,6 +28,10 @@ int main(int argc, char** argv) {
   users->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
   users->add_flag("--reverse", reverse, "Reverse sort order");
 
+  auto* partitions = app.add_subcommand("partitions", "Job counts grouped by partition");
+  partitions->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
+  partitions->add_flag("--reverse", reverse, "Reverse sort order");
+
   CLI11_PARSE(app, argc, argv);
 
   // global singleton overwrite
@@ -38,7 +42,7 @@ int main(int argc, char** argv) {
   std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
   slurm::JsonParser parser;
 #else
-  std::string query = "squeue " + std::string(slurm::FixedWidthParser::SQUEUE_FORMAT);
+  std::string query = "squeue " + slurm::FixedWidthParser::squeue_format();
   std::istringstream squeueout( slurm::utils::exec(query.c_str()) );
   slurm::FixedWidthParser parser;
 #endif
@@ -59,6 +63,11 @@ int main(int argc, char** argv) {
   }
   if (users->parsed()) {
     slurm::UserStats stats(jobs);
+    apply_sort(stats);
+    std::cout << stats << std::endl;
+  }
+  if (partitions->parsed()) {
+    slurm::PartitionStats stats(jobs);
     apply_sort(stats);
     std::cout << stats << std::endl;
   }

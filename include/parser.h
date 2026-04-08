@@ -5,10 +5,9 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
-#include "jobs.h"
-#include "consts.h"
-#include "utils.h"
+#include "columns.h"
 
 #ifdef WITH_JSON_INPUT
 #include <nlohmann/json.hpp>
@@ -17,55 +16,57 @@
 namespace slurm {
 
   struct FixedWidthParser {
-    static constexpr const char* SQUEUE_FORMAT =
-      "--format=\"%.18i %.9P %.55j %.8u %.19a %.8T %.10M %.9l %.6D %.20R %.6C %.14b %.10m\"";
+
+    static const std::vector<JobColumn>& columns() {
+      static const std::vector<JobColumn> cols = {
+        jcol_id, jcol_partition, jcol_name,   jcol_user,   jcol_account,
+        jcol_state, jcol_time,   jcol_tlim,   jcol_nodes,  jcol_reason,
+        jcol_cpus,  jcol_gres,   jcol_mem
+      };
+      return cols;
+    }
+
+    static std::string squeue_format() {
+      std::string fmt = "--format=\"";
+      for (const auto& c : columns())
+        fmt += std::string(c.fw_spec) + " ";
+      fmt.back() = '"';
+      return fmt;
+    }
 
     static std::optional<Job> parse_line(const std::string& line) {
       if (line.empty()) return std::nullopt;
 
-      Job job{};
-
-      // Strip spaces from both the line and the known header string to compare
+      // Strip spaces from both the line and the known header to compare
       // them without worrying about alignment differences.
-      auto stripped = line;
-      auto end_pos1 = std::remove(stripped.begin(), stripped.end(), ' ');
-      stripped.erase(end_pos1, stripped.end());
+      static const std::string header =
+        "             JOBID PARTITION"
+        "                                                    NAME     "
+        "USER ACCOUNT                STATE       TIME TIME_LIMI  NODES"
+        " NODELIST(REASON)   CPUS           GRES MIN_MEMORY";
 
-      auto stripped_header = detail::FixedWidth::FILE_HEADER;
-      auto end_pos2 = std::remove(stripped_header.begin(), stripped_header.end(), ' ');
-      stripped_header.erase(end_pos2, stripped_header.end());
+      auto strip = [](std::string s) {
+        s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+        return s;
+      };
+      if (strip(line) == strip(header)) return std::nullopt;
 
-      // if its the output header or empty line
-      if (stripped == stripped_header) return std::nullopt;
-
-      namespace fmt = detail::FixedWidth;
-      job.id        = line.substr( fmt::JOBID_START,     fmt::JOBID_WIDTH     );
-      job.partition = line.substr( fmt::PARTITION_START, fmt::PARTITION_WIDTH );
-      job.name      = line.substr( fmt::NAME_START,      fmt::NAME_WIDTH      );
-      job.user      = line.substr( fmt::USER_START,      fmt::USER_WIDTH      );
-      job.account   = line.substr( fmt::ACC_START,       fmt::ACC_WIDTH       );
-      job.state     = line.substr( fmt::ST_START,        fmt::ST_WIDTH        );
-      job.time      = line.substr( fmt::TIME_START,      fmt::TIME_WIDTH      );
-      job.tlim      = line.substr( fmt::TLIM_START,      fmt::TLIM_WIDTH      );
-      job.nodes     = *slurm::utils::string_to<int>( line.substr(fmt::NODES_START,  fmt::NODES_WIDTH)  );
-
-      job.reason    = slurm::utils::trim( line.substr(fmt::REASON_START, fmt::REASON_WIDTH) );
-      auto cpus_opt = slurm::utils::string_to<int>( line.substr(fmt::CPUS_START, fmt::CPUS_WIDTH) );
-      job.cpus      = cpus_opt ? *cpus_opt : 0;
-      std::string gres_str = slurm::utils::trim( line.substr(fmt::GRES_START, fmt::GRES_WIDTH) );
-      job.gpu       = !gres_str.empty() && gres_str != "(null)";
-      job.mem       = slurm::utils::trim( line.substr(fmt::MEM_START, fmt::MEM_WIDTH) );
-
+      Job job{};
+      int start = 0;
+      for (const auto& c : columns()) {
+        c.parse(job, line.substr(start, c.fw_width));
+        start += c.fw_width;
+      }
       return job;
     }
 
     Jobs operator()(std::istream& in) const {
       Jobs jobs;
       std::string line;
-      while (std::getline(in, line)){
+      while (std::getline(in, line)) {
         auto job = parse_line(line);
         if (job) jobs.push_back(*job);
-      };
+      }
       return jobs;
     }
   };

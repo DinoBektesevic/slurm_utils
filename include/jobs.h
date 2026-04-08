@@ -30,7 +30,5 @@ namespace slurm {
   };
   using Jobs = std::vector<Job>;
 
-  std::istream& operator>>( std::istream& ins, Job& job );
-
 } // namespace slurm
 #endif // SLURM_JOBS_H
