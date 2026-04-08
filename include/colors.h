@@ -23,8 +23,8 @@ namespace slurm {
     };
 
     void light(){
-      healthy  = [](const std::string& s) { return "\033[32m" + s + "\033[0m"; };
-      warning  = [](const std::string& s) { return "\033[33m" + s + "\033[0m"; };
+      healthy  = [](const std::string& s) { return "\033[34m" + s + "\033[0m"; };
+      warning  = [](const std::string& s) { return "\033[35m" + s + "\033[0m"; };
       critical = [](const std::string& s) { return "\033[31m" + s + "\033[0m"; };
       inactive = [](const std::string& s) { return "\033[2m"  + s + "\033[0m"; };
       header   = [](const std::string& s) { return "\033[1m"  + s + "\033[0m"; };
