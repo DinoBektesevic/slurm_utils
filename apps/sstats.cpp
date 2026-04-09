@@ -17,12 +17,14 @@ int main(int argc, char** argv) {
   std::string sort_by = "running";
   std::string theme = "dark";
   bool reverse = false;
+  bool expand  = false;
 
   app.add_option("--theme", theme, "Chose theme: dark, light, none");
 
   auto* accounts = app.add_subcommand("accounts", "Job counts grouped by account");
   accounts->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
   accounts->add_flag("--reverse", reverse, "Reverse sort order");
+  accounts->add_flag("--expand", expand, "Show per-user breakdown under each account");
 
   auto* users = app.add_subcommand("users", "Job counts grouped by user");
   users->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
@@ -59,7 +61,8 @@ int main(int argc, char** argv) {
   if (accounts->parsed()) {
     slurm::AccountStats stats(jobs);
     apply_sort(stats);
-    std::cout << stats << std::endl;
+    if (expand) slurm::print_expanded(std::cout, stats, jobs);
+    else        std::cout << stats << std::endl;
   }
   if (users->parsed()) {
     slurm::UserStats stats(jobs);
