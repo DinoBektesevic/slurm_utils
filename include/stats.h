@@ -71,8 +71,10 @@ namespace slurm {
   template<typename KeyFn>
   std::string render_header(const std::vector<StatColumn<KeyFn>>& cols, int kw) {
     std::ostringstream s;
-    for (const auto& c : cols)
-      s << std::left << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.label;
+    for (const auto& c : cols) {
+      if (c.id == ColumnID::Key) s << std::left  << std::setw(kw)      << c.label;
+      else                       s << std::right << std::setw(c.width) << c.label;
+    }
     return s.str();
   }
 
@@ -85,8 +87,10 @@ namespace slurm {
     outs << hdr << "\n";
     for (const auto& s : col.stats) {
       std::ostringstream oss;
-      for (const auto& c : cols)
-        oss << std::left << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.extract(s);
+      for (const auto& c : cols) {
+        if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
+        else                       oss << std::right << std::setw(c.width) << c.extract(s);
+      }
       outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                                    s->jstates[JobStates::PENDING], s->njobs) << "\n";
     }
@@ -200,8 +204,10 @@ namespace slurm {
       // Account row — numbers at visual column kw.
       {
         std::ostringstream oss;
-        for (const auto& c : acc_cols)
-          oss << std::left << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.extract(s);
+        for (const auto& c : acc_cols) {
+          if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
+          else                       oss << std::right << std::setw(c.width) << c.extract(s);
+        }
         out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                                     s->jstates[JobStates::PENDING], s->njobs) << "\n";
       }
@@ -220,7 +226,7 @@ namespace slurm {
           // the first number column at visual position kw + user_indent.
           oss << std::left << std::setw(kw + user_prefix_bytes) << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
-            oss << std::left << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
+            oss << std::right << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
           out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
                                       u->jstates[JobStates::PENDING], u->njobs) << "\n";
         }
