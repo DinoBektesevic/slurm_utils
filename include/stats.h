@@ -52,10 +52,10 @@ namespace slurm {
 
   // Select row color based on job state distribution.
   inline std::string row_color(const std::string& row, int running, int pending, int njobs) {
-    if      (running == 0)                         return Colors.inactive(row);
-    else if ((double)pending / njobs > 0.8)        return Colors.critical(row);
-    else if ((double)pending / njobs > 0.4)        return Colors.warning(row);
-    else                                           return Colors.healthy(row);
+    if      (running == 0)                  return Colors.inactive(row);
+    else if ((double)pending / njobs > 0.8) return Colors.critical(row);
+    else if ((double)pending / njobs > 0.4) return Colors.warning(row);
+    else                                    return Colors.healthy(row);
   }
 
   // Key column width: at least label+2, expanded to fit the longest key value.
@@ -189,9 +189,9 @@ namespace slurm {
     // Accounts:  key left-aligned in kw,          numbers at visual column kw.
     // Users:     key left-aligned in kw+4 visual, numbers at visual column kw+4.
     // setw uses byte count, so user rows need setw(kw + prefix_bytes) to hit kw+4 visually.
-    static constexpr const char* user_prefix        = "  \xC2\xB7 "; // "  · "
-    static constexpr int         user_indent        = 4;  // visual width of prefix
-    static constexpr int         user_prefix_bytes  = 5;  // byte  width of prefix
+    static constexpr const char* user_prefix        = "  \xC2\xB7 "; // "  · " — 4 visual, 5 bytes
+    static constexpr int         user_prefix_bytes  = 5;  // byte width (U+00B7 is 2 UTF-8 bytes)
+    // Numbers appear 4 visual columns further right on user rows than on account rows.
 
     // kw: enough for account names (+2 gap) and usernames (+2 gap within their effective column).
     int kw = key_width(accounts);
