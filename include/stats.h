@@ -71,8 +71,10 @@ namespace slurm {
   template<typename KeyFn>
   std::string render_header(const std::vector<StatColumn<KeyFn>>& cols, int kw) {
     std::ostringstream s;
-    for (const auto& c : cols)
-      s << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.label;
+    for (const auto& c : cols) {
+      if (c.id == ColumnID::Key) s << std::left  << std::setw(kw)       << c.label;
+      else                       s << std::right << std::setw(c.width)  << c.label;
+    }
     return s.str();
   }
 
@@ -85,8 +87,10 @@ namespace slurm {
     outs << hdr << "\n";
     for (const auto& s : col.stats) {
       std::ostringstream oss;
-      for (const auto& c : cols)
-        oss << std::setw(c.id == ColumnID::Key ? kw : c.width) << std::right << c.extract(s);
+      for (const auto& c : cols) {
+        if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
+        else                       oss << std::right << std::setw(c.width) << c.extract(s);
+      }
       outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                                    s->jstates[JobStates::PENDING], s->njobs) << "\n";
     }
@@ -181,23 +185,33 @@ namespace slurm {
     const auto& acc_cols = AccountKeyFn::columns();
     const auto& usr_cols = UserKeyFn::columns();
 
-    // Key width: account names + "  · username" (4-char prefix + 2 padding).
+    // User prefix: "  · " — 4 visual chars, 5 bytes (U+00B7 is 2 UTF-8 bytes).
+    // Accounts:  key left-aligned in kw,          numbers at visual column kw.
+    // Users:     key left-aligned in kw+4 visual, numbers at visual column kw+4.
+    // setw uses byte count, so user rows need setw(kw + prefix_bytes) to hit kw+4 visually.
+    static constexpr const char* user_prefix        = "  \xC2\xB7 "; // "  · "
+    static constexpr int         user_indent        = 4;  // visual width of prefix
+    static constexpr int         user_prefix_bytes  = 5;  // byte  width of prefix
+
+    // kw: enough for account names (+2 gap) and usernames (+2 gap within their effective column).
     int kw = key_width(accounts);
     for (const auto& job : all_jobs)
-      kw = std::max(kw, static_cast<int>(job.user.size()) + 6);
+      kw = std::max(kw, static_cast<int>(job.user.size()) + 2);
 
     auto hdr = render_header(acc_cols, kw);
     out << hdr << "\n";
     for (const auto& s : accounts) {
-      // Account row.
+      // Account row — numbers at visual column kw.
       {
         std::ostringstream oss;
-        for (const auto& c : acc_cols)
-          oss << std::setw(c.id == ColumnID::Key ? kw : c.width) << std::right << c.extract(s);
+        for (const auto& c : acc_cols) {
+          if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
+          else                       oss << std::right << std::setw(c.width) << c.extract(s);
+        }
         out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                                     s->jstates[JobStates::PENDING], s->njobs) << "\n";
       }
-      // User sub-rows.
+      // User sub-rows — numbers at visual column kw + user_indent.
       auto it = by_account.find(s->key);
       if (it != by_account.end()) {
         StatCollection<UserKeyFn> user_stats(it->second);
@@ -207,10 +221,12 @@ namespace slurm {
                   });
         for (const auto& u : user_stats) {
           std::ostringstream oss;
-          std::string indented = "  \xC2\xB7 " + u->key; // "  · " (U+00B7 in UTF-8)
-          oss << std::setw(kw) << std::right << indented;
+          std::string indented = user_prefix + u->key;
+          // setw(kw + prefix_bytes) produces kw + user_indent visual chars, placing
+          // the first number column at visual position kw + user_indent.
+          oss << std::left << std::setw(kw + user_prefix_bytes) << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
-            oss << std::setw(usr_cols[i].width) << std::right << usr_cols[i].extract(u);
+            oss << std::right << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
           out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
                                       u->jstates[JobStates::PENDING], u->njobs) << "\n";
         }

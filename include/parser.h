@@ -37,26 +37,17 @@ namespace slurm {
     static std::optional<Job> parse_line(const std::string& line) {
       if (line.empty()) return std::nullopt;
 
-      // Strip spaces from both the line and the known header to compare
-      // them without worrying about alignment differences.
-      static const std::string header =
-        "             JOBID PARTITION"
-        "                                                    NAME     "
-        "USER ACCOUNT                STATE       TIME TIME_LIMI  NODES"
-        " NODELIST(REASON)   CPUS           GRES MIN_MEMORY";
-
-      auto strip = [](std::string s) {
-        s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
-        return s;
-      };
-      if (strip(line) == strip(header)) return std::nullopt;
-
       Job job{};
       int start = 0;
       for (const auto& c : columns()) {
         c.parse(job, line.substr(start, c.fw_width));
         start += c.fw_width;
       }
+
+      // Job IDs are always positive integers. If the ID field didn't parse
+      // as one, this is a header line — skip it.
+      if (!utils::string_to<int>(job.id)) return std::nullopt;
+
       return job;
     }
 

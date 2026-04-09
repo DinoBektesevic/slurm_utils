@@ -50,7 +50,6 @@ option(WITH_JSON_INPUT "Enable JSON input via squeue --json (requires SLURM 21.0
 add_executable(sstats
   apps/sstats.cpp
   src/utils.cpp
-  src/jobs.cpp
 )
 target_include_directories(sstats PRIVATE include/)
 target_link_libraries(sstats PRIVATE CLI11::CLI11)
