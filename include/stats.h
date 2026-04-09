@@ -72,8 +72,8 @@ namespace slurm {
   std::string render_header(const std::vector<StatColumn<KeyFn>>& cols, int kw) {
     std::ostringstream s;
     for (const auto& c : cols) {
-      if (c.id == ColumnID::Key) s << std::left  << std::setw(kw)      << c.label;
-      else                       s << std::right << std::setw(c.width) << c.label;
+      if (c.id == ColumnID::Key) s << std::left << std::setw(kw)      << c.label;
+      else                       s << std::left << std::setw(c.width) << c.label;
     }
     return s.str();
   }
@@ -185,15 +185,26 @@ namespace slurm {
     const auto& acc_cols = AccountKeyFn::columns();
     const auto& usr_cols = UserKeyFn::columns();
 
+    /* The way I want this table to work is 
+     * ACCOUNT      TOTAL   RUNNING   PENDING SUSPENDED  STOPPED
+     * escience     3       3         0       0          0
+     *   · lbraun1      2       2         0       0          0
+     *   · dinob        1       1         0       0          0
+     * astr         123     123       228     0          0
+     *   · lbraun1     82     122         0       0          0
+     *   · dinob       61       1         0       0          0      
+     *
+     * But that makes it hard to align the numbers and names cause
+     * they all go at a different column widths. So it's left aligned
+     * accounts, with right aligned user so that the end of the alignement
+     * column ends at account column alignement start + 4 characters
+     */
     // User prefix: "  · " — 4 visual chars, 5 bytes (U+00B7 is 2 UTF-8 bytes).
-    // Accounts:  key left-aligned in kw,          numbers at visual column kw.
-    // Users:     key left-aligned in kw+4 visual, numbers at visual column kw+4.
     // setw uses byte count, so user rows need setw(kw + prefix_bytes) to hit kw+4 visually.
     static constexpr const char* user_prefix        = "  \xC2\xB7 "; // "  · " — 4 visual, 5 bytes
     static constexpr int         user_prefix_bytes  = 5;  // byte width (U+00B7 is 2 UTF-8 bytes)
-    // Numbers appear 4 visual columns further right on user rows than on account rows.
 
-    // kw: enough for account names (+2 gap) and usernames (+2 gap within their effective column).
+    // kw: enough for account names (+2 gap within their effective column).
     int kw = key_width(accounts);
     for (const auto& job : all_jobs)
       kw = std::max(kw, static_cast<int>(job.user.size()) + 2);
@@ -205,8 +216,8 @@ namespace slurm {
       {
         std::ostringstream oss;
         for (const auto& c : acc_cols) {
-          if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
-          else                       oss << std::right << std::setw(c.width) << c.extract(s);
+          if (c.id == ColumnID::Key) oss << std::left << std::setw(kw)      << c.extract(s);
+          else                       oss << std::left << std::setw(c.width) << c.extract(s);
         }
         out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                                     s->jstates[JobStates::PENDING], s->njobs) << "\n";
@@ -224,7 +235,7 @@ namespace slurm {
           std::string indented = user_prefix + u->key;
           // setw(kw + prefix_bytes) produces kw + user_indent visual chars, placing
           // the first number column at visual position kw + user_indent.
-          oss << std::left << std::setw(kw + user_prefix_bytes) << indented;
+          oss << std::left << std::setw(kw-4) << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
             oss << std::right << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
           out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
