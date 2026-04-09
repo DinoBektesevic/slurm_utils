@@ -87,10 +87,8 @@ namespace slurm {
     outs << hdr << "\n";
     for (const auto& s : col.stats) {
       std::ostringstream oss;
-      for (const auto& c : cols) {
-        if (c.id == ColumnID::Key) oss << std::left  << std::setw(kw)      << c.extract(s);
-        else                       oss << std::right << std::setw(c.width) << c.extract(s);
-      }
+      for (const auto& c : cols)
+        oss << std::left << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.extract(s);
       outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
                         s->jstates[JobStates::PENDING], s->njobs) << "\n";
     }

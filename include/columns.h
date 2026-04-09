@@ -68,10 +68,10 @@ namespace slurm {
   };
 
   constexpr JobColumn jcol_partition = {
-    /*base=    */ {ColumnID::Partition, "PARTITION", 10, true},
+    /*base=    */ {ColumnID::Partition, "PARTITION", 21, true},
     /*extract= */ [](const Job& j) { return j.partition; },
-    /*fw_spec= */ "%.9P",
-    /*fw_width=*/ 10,
+    /*fw_spec= */ "%.20P",
+    /*fw_width=*/ 21,
     /*parse=   */ [](Job& j, const std::string& s) { j.partition = utils::trim(s); }
   };
 

@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
                                 [](const slurm::NodeSummary& s) { return s.gpu_total > 0; });
     constexpr int kPart  = 22;
-    constexpr int kNum   =  8;
+    constexpr int kNum   = 10;
     auto pw = [&](int w, const std::string& s) {
       std::cout << std::left << std::setw(w) << s;
     };
