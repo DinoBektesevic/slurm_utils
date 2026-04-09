@@ -1,7 +1,6 @@
 #ifndef SLURM_STATS_H
 #define SLURM_STATS_H
 
-#include <array>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -11,11 +10,16 @@
 #include <vector>
 
 #include "columns.h"
-#include "consts.h"
 #include "colors.h"
 #include "jobs.h"
 
 namespace slurm {
+
+  /*
+   *
+   *                  ABSTRACT AGGREGATOR
+   *
+   */
 
   template<typename KeyFn>
   struct StatCollection {
@@ -50,6 +54,16 @@ namespace slurm {
     typename std::vector<sptr_stat<KeyFn>>::const_iterator end()   const { return stats.end();   }
   };
 
+  using AccountStats   = StatCollection<by::AccountKeyFn>;
+  using UserStats      = StatCollection<by::UserKeyFn>;
+  using PartitionStats = StatCollection<by::PartitionKeyFn>;
+
+  /*
+   *
+   *                  RENDERING HELPERS
+   *
+   */
+
   // Select row color based on job state distribution.
   inline std::string row_color(const std::string& row, int running, int pending, int njobs) {
     if      (running == 0)                  return Colors.inactive(row);
@@ -78,6 +92,12 @@ namespace slurm {
     return s.str();
   }
 
+  /*
+   *
+   *                  PRINTERS
+   *
+   */
+
   template<typename KeyFn>
   std::ostream& operator<<(std::ostream& outs, const StatCollection<KeyFn>& col) {
     const auto& cols = KeyFn::columns();
@@ -97,81 +117,6 @@ namespace slurm {
     return outs;
   }
 
-  // Key functors and type aliases
-
-  struct AccountKeyFn {
-    static constexpr const char* label = "ACCOUNT";
-
-    std::string operator()(const Job& job) const { return job.account; }
-
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "…";
-    }
-
-    static const std::vector<StatColumn<AccountKeyFn>>& columns() {
-      static const std::vector<StatColumn<AccountKeyFn>> cols = {
-        col_key<AccountKeyFn>,
-        col_total<AccountKeyFn>,
-        col_running<AccountKeyFn>,
-        col_pending<AccountKeyFn>,
-        col_suspended<AccountKeyFn>,
-        col_stopped<AccountKeyFn>,
-      };
-      return cols;
-    }
-  };
-
-  struct UserKeyFn {
-    static constexpr const char* label = "USER";
-
-    std::string operator()(const Job& job) const { return job.user; }
-
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "…";
-    }
-
-    static const std::vector<StatColumn<UserKeyFn>>& columns() {
-      static const std::vector<StatColumn<UserKeyFn>> cols = {
-        col_key<UserKeyFn>,
-        col_total<UserKeyFn>,
-        col_running<UserKeyFn>,
-        col_pending<UserKeyFn>,
-        col_suspended<UserKeyFn>,
-        col_stopped<UserKeyFn>,
-      };
-      return cols;
-    }
-  };
-
-  struct PartitionKeyFn {
-    static constexpr const char* label = "PARTITION";
-
-    std::string operator()(const Job& job) const { return job.partition; }
-
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "…";
-    }
-
-    static const std::vector<StatColumn<PartitionKeyFn>>& columns() {
-      static const std::vector<StatColumn<PartitionKeyFn>> cols = {
-        col_key<PartitionKeyFn>,
-        col_total<PartitionKeyFn>,
-        col_running<PartitionKeyFn>,
-        col_pending<PartitionKeyFn>,
-        col_suspended<PartitionKeyFn>,
-        col_stopped<PartitionKeyFn>,
-      };
-      return cols;
-    }
-  };
-
-  using AccountStats   = StatCollection<AccountKeyFn>;
-  using UserStats      = StatCollection<UserKeyFn>;
-  using PartitionStats = StatCollection<PartitionKeyFn>;
-
   // Two-level render: each account row followed by its per-user breakdown.
   inline void print_expanded(std::ostream& out, const AccountStats& accounts, const Jobs& all_jobs) {
     // Group jobs by account for sub-aggregation (one pass).
@@ -180,8 +125,8 @@ namespace slurm {
     for (const auto& job : all_jobs)
       by_account[job.account].push_back(job);
 
-    const auto& acc_cols = AccountKeyFn::columns();
-    const auto& usr_cols = UserKeyFn::columns();
+    const auto& acc_cols = by::AccountKeyFn::columns();
+    const auto& usr_cols = by::UserKeyFn::columns();
 
     /* The way I want this table to work is
      * ACCOUNT      TOTAL   RUNNING   PENDING SUSPENDED  STOPPED
@@ -230,9 +175,9 @@ namespace slurm {
       // User sub-rows — numbers at visual column kw + user_indent.
       auto it = by_account.find(s->key);
       if (it != by_account.end()) {
-        StatCollection<UserKeyFn> user_stats(it->second);
+        StatCollection<by::UserKeyFn> user_stats(it->second);
         std::sort(user_stats.begin(), user_stats.end(),
-                  [](const sptr_stat<UserKeyFn>& a, const sptr_stat<UserKeyFn>& b) {
+                  [](const sptr_stat<by::UserKeyFn>& a, const sptr_stat<by::UserKeyFn>& b) {
                     return a->jstates[JobStates::RUNNING] > b->jstates[JobStates::RUNNING];
                   });
         for (const auto& u : user_stats) {

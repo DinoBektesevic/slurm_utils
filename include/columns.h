@@ -2,35 +2,35 @@
 #define SLURM_COLUMNS_H
 
 #include <string>
+#include <vector>
 
+#include "nodes.h"
 #include "utils.h"
 #include "types.h"
 
 namespace slurm {
 
+  /*
+   *
+   *                  COLUMN IDs
+   *
+   */
+
   enum class ColumnID {
-    Key,
-    Total,
-    Running,
-    Pending,
-    Suspended,
-    Stopped,
-    CPUs,
-    Mem,
-    GPU,
-    Reason,
-    IsArray,
-    IsInteractive,
-    JobID,
-    Partition,
-    Name,
-    User,
-    Account,
-    State,
-    Time,
-    TimeLimit,
-    Nodes
+    // Stat aggregate columns
+    Key, Total, Running, Pending, Suspended, Stopped,
+    // Job (squeue) columns
+    CPUs, Mem, GPU, Reason, IsArray, IsInteractive,
+    JobID, Partition, Name, User, Account, State, Time, TimeLimit, Nodes,
+    // Node (sinfo) columns
+    CPUsState, GresTotal, GresUsed
   };
+
+  /*
+   *
+   *                  COLUMN STRUCTS
+   *
+   */
 
   struct ColumnBase {
     ColumnID    id;
@@ -41,9 +41,15 @@ namespace slurm {
 
   struct JobColumn : ColumnBase {
     std::string (*extract)(const Job&);
-    const char*  fw_spec;   // e.g. "%.18i"
-    int          fw_width;  // parsed output width incl. separator
+    const char*  fw_spec;   // squeue --format spec, e.g. "%.18i"
+    int          fw_width;  // fixed-width parse width incl. trailing space
     void        (*parse)(Job&, const std::string&);
+  };
+
+  struct SinfoColumn : ColumnBase {
+    // label = sinfo -O field name (e.g. "Partition")
+    // width = exact output width in bytes (sinfo -O has no field separator)
+    void (*parse)(Node&, const std::string&);
   };
 
   template<typename KeyFn>
@@ -53,11 +59,9 @@ namespace slurm {
 
   /*
    *
-   *                  COLUMN DEFINITIONS
+   *                  JOB COLUMNS
    *
    */
-
-  //                     Job Columns
 
   constexpr JobColumn jcol_id = {
     /*base=    */ {ColumnID::JobID, "JOBID", 19, true},
@@ -163,8 +167,115 @@ namespace slurm {
     /*parse=   */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
   };
 
+  /*
+   *
+   *                  NODE COLUMNS
+   *
+   */
 
-  //                     Stat Columns
+  //                     Parsing helpers
+
+  // Parse "allocated/idle/other/total" CPUsState string → {alloc, idle, total}.
+  inline std::tuple<int,int,int> parse_cpus_state(const std::string& s) {
+    auto tok = [&](int idx) -> int {
+      size_t pos = 0;
+      for (int i = 0; i < idx; ++i) {
+        pos = s.find('/', pos);
+        if (pos == std::string::npos) return 0;
+        ++pos;
+      }
+      auto v = utils::string_to<int>(s.substr(pos, s.find('/', pos) - pos));
+      return v ? *v : 0;
+    };
+    return {tok(0), tok(1), tok(3)};
+  }
+
+  // Parse GPU count from "gpu:TYPE:COUNT" or "gpu:TYPE:COUNT(IDX:...)".
+  // Returns 0 for "(null)" or non-GPU gres strings.
+  inline int parse_gres_count(const std::string& s) {
+    if (s.empty() || s == "(null)" || s.find("gpu") == std::string::npos) return 0;
+    // Strip "(IDX:...)" before searching for the count — otherwise rfind(':')
+    // lands inside the IDX suffix instead of before the count token.
+    auto cleaned = s.substr(0, s.find('('));
+    auto p = cleaned.rfind(':');
+    if (p == std::string::npos) return 0;
+    auto v = utils::string_to<int>(utils::trim(cleaned.substr(p + 1)));
+    return v ? *v : 0;
+  }
+
+  // Parse GPU type from "gpu:TYPE:COUNT" → "TYPE". Empty if not a GPU gres.
+  inline std::string parse_gres_type(const std::string& s) {
+    if (s.empty() || s == "(null)" || s.find("gpu") == std::string::npos) return "";
+    auto first  = s.find(':');
+    if (first  == std::string::npos) return "";
+    auto second = s.find(':', first + 1);
+    if (second == std::string::npos) return "";
+    return s.substr(first + 1, second - first - 1);
+  }
+
+  // Strip SLURM node-state suffix flags (* # ! % $ @ ^ -).
+  inline std::string strip_state_suffix(const std::string& s) {
+    auto end = s.find_last_not_of("*#!%$@^-");
+    return (end == std::string::npos) ? "" : s.substr(0, end + 1);
+  }
+
+  //                     Column instances
+
+  constexpr SinfoColumn scol_partition = {
+    /*base=  */ {ColumnID::Partition, "Partition", 25, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      auto t = utils::trim(s);
+      if (!t.empty() && t.back() == '*') t.pop_back();
+      n.partition = t;
+    }
+  };
+
+  constexpr SinfoColumn scol_nodes = {
+    /*base=  */ {ColumnID::Nodes, "Nodes", 6, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      auto v = utils::string_to<int>(utils::trim(s));
+      if (v) n.node_count = *v;
+    }
+  };
+
+  constexpr SinfoColumn scol_cpus_state = {
+    /*base=  */ {ColumnID::CPUsState, "CPUsState", 25, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      auto [alloc, idle, total] = parse_cpus_state(utils::trim(s));
+      n.cpu_alloc = alloc;
+      n.cpu_idle  = idle;
+      n.cpu_total = total;
+    }
+  };
+
+  constexpr SinfoColumn scol_gres = {
+    /*base=  */ {ColumnID::GresTotal, "Gres", 25, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      auto t      = utils::trim(s);
+      n.gpu_total = parse_gres_count(t);
+      n.gpu_type  = parse_gres_type(t);
+    }
+  };
+
+  constexpr SinfoColumn scol_gres_used = {
+    /*base=  */ {ColumnID::GresUsed, "GresUsed", 40, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      n.gpu_used = parse_gres_count(utils::trim(s));
+    }
+  };
+
+  constexpr SinfoColumn scol_state = {
+    /*base=  */ {ColumnID::State, "StateLong", 20, true},
+    /*parse= */ [](Node& n, const std::string& s) {
+      n.state = strip_state_suffix(utils::trim(s));
+    }
+  };
+
+  /*
+   *
+   *                  STAT COLUMNS
+   *
+   */
 
   template<typename KeyFn>
   constexpr StatColumn<KeyFn> col_key = {
@@ -202,6 +313,85 @@ namespace slurm {
     /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->jstates[JobStates::STOPPED]); }
   };
 
-}
+} // namespace slurm
+
+namespace slurm::by {
+
+  /*
+   *
+   *                  KEY FUNCTIONS
+   *
+   */
+
+  struct AccountKeyFn {
+    static constexpr const char* label = "ACCOUNT";
+
+    std::string operator()(const Job& job) const { return job.account; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
+    }
+
+    static const std::vector<StatColumn<AccountKeyFn>>& columns() {
+      static const std::vector<StatColumn<AccountKeyFn>> cols = {
+        col_key<AccountKeyFn>,
+        col_total<AccountKeyFn>,
+        col_running<AccountKeyFn>,
+        col_pending<AccountKeyFn>,
+        col_suspended<AccountKeyFn>,
+        col_stopped<AccountKeyFn>,
+      };
+      return cols;
+    }
+  };
+
+  struct UserKeyFn {
+    static constexpr const char* label = "USER";
+
+    std::string operator()(const Job& job) const { return job.user; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
+    }
+
+    static const std::vector<StatColumn<UserKeyFn>>& columns() {
+      static const std::vector<StatColumn<UserKeyFn>> cols = {
+        col_key<UserKeyFn>,
+        col_total<UserKeyFn>,
+        col_running<UserKeyFn>,
+        col_pending<UserKeyFn>,
+        col_suspended<UserKeyFn>,
+        col_stopped<UserKeyFn>,
+      };
+      return cols;
+    }
+  };
+
+  struct PartitionKeyFn {
+    static constexpr const char* label = "PARTITION";
+
+    std::string operator()(const Job& job) const { return job.partition; }
+
+    static std::string format_key(const std::string& key, int width) {
+      if ((int)key.size() <= width) return key;
+      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
+    }
+
+    static const std::vector<StatColumn<PartitionKeyFn>>& columns() {
+      static const std::vector<StatColumn<PartitionKeyFn>> cols = {
+        col_key<PartitionKeyFn>,
+        col_total<PartitionKeyFn>,
+        col_running<PartitionKeyFn>,
+        col_pending<PartitionKeyFn>,
+        col_suspended<PartitionKeyFn>,
+        col_stopped<PartitionKeyFn>,
+      };
+      return cols;
+    }
+  };
+
+} // namespace slurm::by
 
 #endif // SLURM_COLUMNS_H

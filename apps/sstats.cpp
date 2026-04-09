@@ -6,12 +6,9 @@
 #include <string>
 
 #include "compops.h"
-#include "consts.h"
-#include "nodes.h"
-#include "sinfo_parser.h"
+#include "parsers.h"
 #include "stats.h"
 #include "utils.h"
-#include "parser.h"
 
 int main(int argc, char** argv) {
   CLI::App app{"SLURM statistics utilities"};

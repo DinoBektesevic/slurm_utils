@@ -4,7 +4,6 @@
 #include <array>
 #include <memory>
 
-#include "consts.h"
 #include "jobs.h"
 
 namespace slurm {

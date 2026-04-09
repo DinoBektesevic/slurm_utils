@@ -1,13 +1,13 @@
 #ifndef SLURM_PARSERS_H
 #define SLURM_PARSERS_H
 
-#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "columns.h"
+#include "nodes.h"
 
 #ifdef WITH_JSON_INPUT
 #include <nlohmann/json.hpp>
@@ -62,7 +62,56 @@ namespace slurm {
     }
   };
 
+  struct SinfoParser {
+
+    static const std::vector<SinfoColumn>& columns() {
+      static const std::vector<SinfoColumn> cols = {
+        scol_partition,
+        scol_nodes,
+        scol_cpus_state,
+        scol_gres,
+        scol_gres_used,
+        scol_state
+      };
+      return cols;
+    }
+
+    // Assembles: --noheader -O "Partition:25,Nodes:6,..."
+    // Derived from columns() — same source of truth as parse_line.
+    static std::string sinfo_format() {
+      std::string fmt = "--noheader -O \"";
+      for (const auto& c : columns())
+        fmt += std::string(c.label) + ":" + std::to_string(c.width) + ",";
+      fmt.back() = '"';
+      return fmt;
+    }
+
+    static std::optional<Node> parse_line(const std::string& line) {
+      if (line.empty()) return std::nullopt;
+      Node n{};
+      int start = 0;
+      for (const auto& c : columns()) {
+        if (start + c.width > (int)line.size()) return std::nullopt;
+        c.parse(n, line.substr(start, c.width));
+        start += c.width;
+      }
+      if (n.partition.empty()) return std::nullopt;
+      return n;
+    }
+
+    Nodes operator()(std::istream& in) const {
+      Nodes nodes;
+      std::string line;
+      while (std::getline(in, line)) {
+        auto n = parse_line(line);
+        if (n) nodes.push_back(*n);
+      }
+      return nodes;
+    }
+  };
+
 #ifdef WITH_JSON_INPUT
+
   struct JsonParser {
     static constexpr const char* SQUEUE_FORMAT = "--json";
 
@@ -122,6 +171,5 @@ namespace slurm {
 
 #endif // WITH_JSON_INPUT
 
-
-}
+} // namespace slurm
 #endif // SLURM_PARSERS_H
