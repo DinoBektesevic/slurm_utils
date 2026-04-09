@@ -1,11 +1,14 @@
 #include <CLI/CLI.hpp>
 #include <algorithm>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
 
 #include "compops.h"
 #include "consts.h"
+#include "nodes.h"
+#include "sinfo_parser.h"
 #include "stats.h"
 #include "utils.h"
 #include "parser.h"
@@ -33,6 +36,8 @@ int main(int argc, char** argv) {
   auto* partitions = app.add_subcommand("partitions", "Job counts grouped by partition");
   partitions->add_option("--sort", sort_by, "Sort by: running, pending, total, name");
   partitions->add_flag("--reverse", reverse, "Reverse sort order");
+
+  auto* nodes = app.add_subcommand("nodes", "Node resource usage by partition");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -73,6 +78,48 @@ int main(int argc, char** argv) {
     slurm::PartitionStats stats(jobs);
     apply_sort(stats);
     std::cout << stats << std::endl;
+  }
+
+  if (nodes->parsed()) {
+    std::string sinfo_cmd = "sinfo " + slurm::SinfoParser::sinfo_format();
+    std::istringstream sinfoout( slurm::utils::exec(sinfo_cmd.c_str()) );
+    slurm::SinfoParser sinfo_parser;
+    slurm::Nodes raw = sinfo_parser(sinfoout);
+    slurm::NodeSummaries summaries = slurm::aggregate_nodes(raw);
+
+    // Sort by partition name.
+    std::sort(summaries.begin(), summaries.end(),
+              [](const slurm::NodeSummary& a, const slurm::NodeSummary& b) {
+                return a.partition < b.partition;
+              });
+
+    // Header
+    bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
+                                [](const slurm::NodeSummary& s) { return s.gpu_total > 0; });
+    constexpr int kPart  = 22;
+    constexpr int kNum   =  8;
+    auto pw = [&](int w, const std::string& s) {
+      std::cout << std::left << std::setw(w) << s;
+    };
+    auto rw = [&](int w, int v) {
+      std::cout << std::right << std::setw(w) << v;
+    };
+
+    pw(kPart, "PARTITION");
+    pw(kNum,  "NODES");
+    pw(kNum,  "CPU_TOT"); pw(kNum, "CPU_USE"); pw(kNum, "CPU_FREE");
+    if (has_gpus)
+      pw(kNum, "GPU_TOT"), pw(kNum, "GPU_USE"), pw(kNum, "GPU_FREE");
+    std::cout << "\n";
+
+    for (const auto& s : summaries) {
+      pw(kPart, s.partition);
+      rw(kNum,  s.nodes);
+      rw(kNum,  s.cpu_total); rw(kNum, s.cpu_alloc); rw(kNum, s.cpu_idle);
+      if (has_gpus)
+        rw(kNum, s.gpu_total), rw(kNum, s.gpu_used), rw(kNum, s.gpu_total - s.gpu_used);
+      std::cout << "\n";
+    }
   }
 
   return 0;

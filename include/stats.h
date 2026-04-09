@@ -92,7 +92,7 @@ namespace slurm {
         else                       oss << std::right << std::setw(c.width) << c.extract(s);
       }
       outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
-                                   s->jstates[JobStates::PENDING], s->njobs) << "\n";
+                        s->jstates[JobStates::PENDING], s->njobs) << "\n";
     }
     outs << hdr << "\n";
 
@@ -185,26 +185,33 @@ namespace slurm {
     const auto& acc_cols = AccountKeyFn::columns();
     const auto& usr_cols = UserKeyFn::columns();
 
-    /* The way I want this table to work is 
+    /* The way I want this table to work is
      * ACCOUNT      TOTAL   RUNNING   PENDING SUSPENDED  STOPPED
      * escience     3       3         0       0          0
      *   · lbraun1      2       2         0       0          0
      *   · dinob        1       1         0       0          0
      * astr         123     123       228     0          0
      *   · lbraun1     82     122         0       0          0
-     *   · dinob       61       1         0       0          0      
+     *   · dinob       61       1         0       0          0
      *
      * But that makes it hard to align the numbers and names cause
      * they all go at a different column widths. So it's left aligned
      * accounts, with right aligned user so that the end of the alignement
      * column ends at account column alignement start + 4 characters
+     *
+     * So, what needs to is to split out the formatting for account numbers
+     * from the formatting of user numbers. Then if the values being printed
+     * need to be split out on the column - if the user or account column is
+     * getting printed, we have one set of spaces and column widths, compared
+     * to columns where we print numbers section.
+     * This is cause we want to set the account column width to the maximum
+     * length of an account or an user name.
      */
     // User prefix: "  · " — 4 visual chars, 5 bytes (U+00B7 is 2 UTF-8 bytes).
     // setw uses byte count, so user rows need setw(kw + prefix_bytes) to hit kw+4 visually.
-    static constexpr const char* user_prefix        = "  \xC2\xB7 "; // "  · " — 4 visual, 5 bytes
-    static constexpr int         user_prefix_bytes  = 5;  // byte width (U+00B7 is 2 UTF-8 bytes)
+    static constexpr const char* user_prefix        = "  \xC2\xB7 ";
 
-    // kw: enough for account names (+2 gap within their effective column).
+    // kw: enough for account names +2 gap within their effective column.
     int kw = key_width(accounts);
     for (const auto& job : all_jobs)
       kw = std::max(kw, static_cast<int>(job.user.size()) + 2);
@@ -220,7 +227,7 @@ namespace slurm {
           else                       oss << std::left << std::setw(c.width) << c.extract(s);
         }
         out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
-                                    s->jstates[JobStates::PENDING], s->njobs) << "\n";
+                         s->jstates[JobStates::PENDING], s->njobs) << "\n";
       }
       // User sub-rows — numbers at visual column kw + user_indent.
       auto it = by_account.find(s->key);
@@ -233,13 +240,14 @@ namespace slurm {
         for (const auto& u : user_stats) {
           std::ostringstream oss;
           std::string indented = user_prefix + u->key;
-          // setw(kw + prefix_bytes) produces kw + user_indent visual chars, placing
-          // the first number column at visual position kw + user_indent.
+          // setw(kw -4) produces kw width, right aligned. So tab position starts at that point
+          // Then -4 offsets the position to the left by 4 bytes. Cause nobody runs 10k+ jobs,
+          // this will appear as the tab position is the end mark of the column, not start.
           oss << std::left << std::setw(kw-4) << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
             oss << std::right << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
           out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
-                                      u->jstates[JobStates::PENDING], u->njobs) << "\n";
+                           u->jstates[JobStates::PENDING], u->njobs) << "\n";
         }
       }
     }
