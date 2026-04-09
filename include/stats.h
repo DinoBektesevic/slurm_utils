@@ -16,7 +16,7 @@
 #include "jobs.h"
 
 namespace slurm {
-  
+
   template<typename KeyFn>
   struct StatCollection {
 
@@ -50,43 +50,47 @@ namespace slurm {
     typename std::vector<sptr_stat<KeyFn>>::const_iterator end()   const { return stats.end();   }
   };
 
+  // Select row color based on job state distribution.
+  inline std::string row_color(const std::string& row, int running, int pending, int njobs) {
+    if      (running == 0)                         return Colors.inactive(row);
+    else if ((double)pending / njobs > 0.8)        return Colors.critical(row);
+    else if ((double)pending / njobs > 0.4)        return Colors.warning(row);
+    else                                           return Colors.healthy(row);
+  }
+
+  // Key column width: at least label+2, expanded to fit the longest key value.
+  template<typename KeyFn>
+  int key_width(const StatCollection<KeyFn>& col) {
+    int w = static_cast<int>(std::string(KeyFn::label).size()) + 2;
+    for (const auto& s : col.stats)
+      w = std::max(w, static_cast<int>(s->key.size()) + 2);
+    return w;
+  }
+
+  // Render a header row given the column list and the resolved key column width.
+  template<typename KeyFn>
+  std::string render_header(const std::vector<StatColumn<KeyFn>>& cols, int kw) {
+    std::ostringstream s;
+    for (const auto& c : cols)
+      s << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.label;
+    return s.str();
+  }
+
   template<typename KeyFn>
   std::ostream& operator<<(std::ostream& outs, const StatCollection<KeyFn>& col) {
     const auto& cols = KeyFn::columns();
+    int kw  = key_width(col);
+    auto hdr = render_header(cols, kw);
 
-    // Key column width is dynamic — expand to fit the longest key
-    int key_w = static_cast<int>(std::string(KeyFn::label).size()) + 2;
-    for (const auto& s : col.stats)
-      key_w = std::max(key_w, static_cast<int>(s->key.size()) + 2);
-
-    auto col_w = [&](const StatColumn<KeyFn>& c) {
-      return (c.id == ColumnID::Key) ? key_w : c.width;
-    };
-
-    auto header = [&]() -> std::string {
-      std::ostringstream s_hdr;
-      for (const auto& c : cols)
-        s_hdr << std::setw(col_w(c)) << c.label;
-      return s_hdr.str();
-    };
-
-    auto color = [](const std::string& row, const sptr_stat<KeyFn>& s) -> std::string {
-      int running = s->jstates[JobStates::RUNNING];
-      int pending = s->jstates[JobStates::PENDING];
-      if      (running == 0)                     return Colors.inactive(row);
-      else if ((double)pending / s->njobs > 0.8) return Colors.critical(row);
-      else if ((double)pending / s->njobs > 0.4) return Colors.warning(row);
-      else                                       return Colors.healthy(row);
-    };
-
-    outs << header() << "\n";
+    outs << hdr << "\n";
     for (const auto& s : col.stats) {
       std::ostringstream oss;
       for (const auto& c : cols)
-        oss << std::setw(col_w(c)) << std::right << c.extract(s);
-      outs << color(oss.str(), s) << "\n";
+        oss << std::setw(c.id == ColumnID::Key ? kw : c.width) << std::right << c.extract(s);
+      outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
+                                   s->jstates[JobStates::PENDING], s->njobs) << "\n";
     }
-    outs << header() << "\n";
+    outs << hdr << "\n";
 
     return outs;
   }
@@ -177,68 +181,42 @@ namespace slurm {
     const auto& acc_cols = AccountKeyFn::columns();
     const auto& usr_cols = UserKeyFn::columns();
 
-    // Key column width: wide enough for account names AND "  · username".
-    int key_w = static_cast<int>(std::string(AccountKeyFn::label).size()) + 2;
-    for (const auto& s : accounts)
-      key_w = std::max(key_w, static_cast<int>(s->key.size()) + 2);
+    // Key width: account names + "  · username" (4-char prefix + 2 padding).
+    int kw = key_width(accounts);
     for (const auto& job : all_jobs)
-      key_w = std::max(key_w, static_cast<int>(job.user.size()) + 6); // "  · " = 4 chars + 2 padding
+      kw = std::max(kw, static_cast<int>(job.user.size()) + 6);
 
-    auto col_w_acc = [&](const StatColumn<AccountKeyFn>& c) {
-      return (c.id == ColumnID::Key) ? key_w : c.width;
-    };
-
-    auto render_header = [&]() {
-      std::ostringstream s;
-      for (const auto& c : acc_cols)
-        s << std::setw(col_w_acc(c)) << c.label;
-      return s.str();
-    };
-
-    auto colorize = [](const std::string& row, int running, int pending, int njobs) -> std::string {
-      if      (running == 0)                         return Colors.inactive(row);
-      else if ((double)pending / njobs > 0.8)        return Colors.critical(row);
-      else if ((double)pending / njobs > 0.4)        return Colors.warning(row);
-      else                                           return Colors.healthy(row);
-    };
-
-    out << render_header() << "\n";
+    auto hdr = render_header(acc_cols, kw);
+    out << hdr << "\n";
     for (const auto& s : accounts) {
       // Account row.
       {
         std::ostringstream oss;
         for (const auto& c : acc_cols)
-          oss << std::setw(col_w_acc(c)) << std::right << c.extract(s);
-        out << colorize(oss.str(),
-                        s->jstates[JobStates::RUNNING],
-                        s->jstates[JobStates::PENDING],
-                        s->njobs) << "\n";
+          oss << std::setw(c.id == ColumnID::Key ? kw : c.width) << std::right << c.extract(s);
+        out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
+                                    s->jstates[JobStates::PENDING], s->njobs) << "\n";
       }
       // User sub-rows.
       auto it = by_account.find(s->key);
       if (it != by_account.end()) {
         StatCollection<UserKeyFn> user_stats(it->second);
-        // Sort users: most running first.
         std::sort(user_stats.begin(), user_stats.end(),
                   [](const sptr_stat<UserKeyFn>& a, const sptr_stat<UserKeyFn>& b) {
                     return a->jstates[JobStates::RUNNING] > b->jstates[JobStates::RUNNING];
                   });
         for (const auto& u : user_stats) {
           std::ostringstream oss;
-          // Key column: indented with bullet.
           std::string indented = "  \xC2\xB7 " + u->key; // "  · " (U+00B7 in UTF-8)
-          oss << std::setw(key_w) << std::right << indented;
-          // Remaining stat columns (skip index 0 = key).
+          oss << std::setw(kw) << std::right << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
             oss << std::setw(usr_cols[i].width) << std::right << usr_cols[i].extract(u);
-          out << colorize(oss.str(),
-                          u->jstates[JobStates::RUNNING],
-                          u->jstates[JobStates::PENDING],
-                          u->njobs) << "\n";
+          out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
+                                      u->jstates[JobStates::PENDING], u->njobs) << "\n";
         }
       }
     }
-    out << render_header() << "\n";
+    out << hdr << "\n";
   }
 
 } // namespace slurm
