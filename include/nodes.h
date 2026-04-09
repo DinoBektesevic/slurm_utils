@@ -2,7 +2,6 @@
 #define SLURM_NODES_H
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace slurm {
@@ -21,41 +20,28 @@ namespace slurm {
 
   using Nodes = std::vector<Node>;
 
-  // Per-partition resource totals aggregated across all state groups.
-  struct NodeSummary {
-    std::string partition;
-    int nodes      = 0;
-    int cpu_total  = 0;
-    int cpu_alloc  = 0;
-    int cpu_idle   = 0;
-    int gpu_total  = 0;
-    int gpu_used   = 0;
-    std::string gpu_type;  // type of GPU in this partition, empty if none
-  };
+  struct NodeEntry {
+    std::string key;
+    int nodes     = 0;
+    int cpu_total = 0;
+    int cpu_alloc = 0;
+    int cpu_idle  = 0;
+    int gpu_total = 0;
+    int gpu_used  = 0;
+    std::string gpu_type;
 
-  using NodeSummaries = std::vector<NodeSummary>;
+    NodeEntry(const std::string& k, const Node& n) : key(k) { update(n); }
 
-  // Aggregate per-(partition, state-group) Node rows into one NodeSummary per partition.
-  inline NodeSummaries aggregate_nodes(const Nodes& nodes) {
-    std::unordered_map<std::string, NodeSummary> lup;
-    for (const auto& n : nodes) {
-      auto& s = lup[n.partition];
-      if (s.partition.empty()) s.partition = n.partition;
-      s.nodes     += n.node_count;
-      s.cpu_total += n.cpu_total;
-      s.cpu_alloc += n.cpu_alloc;
-      s.cpu_idle  += n.cpu_idle;
-      s.gpu_total += n.gpu_total;
-      s.gpu_used  += n.gpu_used;
-      if (s.gpu_type.empty() && !n.gpu_type.empty())
-        s.gpu_type = n.gpu_type;
+    void update(const Node& n) {
+      nodes     += n.node_count;
+      cpu_total += n.cpu_total;
+      cpu_alloc += n.cpu_alloc;
+      cpu_idle  += n.cpu_idle;
+      gpu_total += n.gpu_total;
+      gpu_used  += n.gpu_used;
+      if (gpu_type.empty() && !n.gpu_type.empty()) gpu_type = n.gpu_type;
     }
-    NodeSummaries result;
-    result.reserve(lup.size());
-    for (auto& [k, v] : lup)
-      result.push_back(std::move(v));
-    return result;
-  }
+  };
 
 } // namespace slurm
 #endif // SLURM_NODES_H

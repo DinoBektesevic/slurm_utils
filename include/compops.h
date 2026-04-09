@@ -9,33 +9,33 @@
 namespace slurm {
 
   struct [[maybe_unused]] {
-    template<typename KeyFn>
-    bool operator()(const sptr_stat<KeyFn>& a,
-                    const sptr_stat<KeyFn>& b) const {
+    template<typename T>
+    bool operator()(const std::shared_ptr<T>& a,
+                    const std::shared_ptr<T>& b) const {
       return a->key < b->key;
     }
   } CompareKey;
 
   struct [[maybe_unused]] {
-    template<typename KeyFn>
-    bool operator()(const sptr_stat<KeyFn>& a,
-                    const sptr_stat<KeyFn>& b) const {
+    template<typename T>
+    bool operator()(const std::shared_ptr<T>& a,
+                    const std::shared_ptr<T>& b) const {
       return a->njobs < b->njobs;
     }
   } CompareNJobs;
 
   struct [[maybe_unused]] {
-    template<typename KeyFn>
-    bool operator()(const sptr_stat<KeyFn>& a,
-                    const sptr_stat<KeyFn>& b) const {
+    template<typename T>
+    bool operator()(const std::shared_ptr<T>& a,
+                    const std::shared_ptr<T>& b) const {
       return a->jstates[slurm::JobStates::RUNNING] < b->jstates[slurm::JobStates::RUNNING];
     }
   } CompareNRunning;
 
   struct [[maybe_unused]] {
-    template<typename KeyFn>
-    bool operator()(const sptr_stat<KeyFn>& a,
-                    const sptr_stat<KeyFn>& b) const {
+    template<typename T>
+    bool operator()(const std::shared_ptr<T>& a,
+                    const std::shared_ptr<T>& b) const {
       return a->jstates[slurm::JobStates::PENDING] < b->jstates[slurm::JobStates::PENDING];
     }
   } CompareNPending;

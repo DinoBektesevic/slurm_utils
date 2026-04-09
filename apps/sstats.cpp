@@ -82,27 +82,14 @@ int main(int argc, char** argv) {
     std::istringstream sinfoout( slurm::utils::exec(sinfo_cmd.c_str()) );
     slurm::SinfoParser sinfo_parser;
     slurm::Nodes raw = sinfo_parser(sinfoout);
-    slurm::NodeSummaries summaries = slurm::aggregate_nodes(raw);
+    slurm::NodeStats summaries(raw);
 
-    // Sort by partition name.
-    std::sort(summaries.begin(), summaries.end(),
-              [](const slurm::NodeSummary& a, const slurm::NodeSummary& b) {
-                return a.partition < b.partition;
-              });
+    std::sort(summaries.begin(), summaries.end(), slurm::CompareKey);
 
     bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
-                                [](const slurm::NodeSummary& s) { return s.gpu_total > 0; });
+                                [](const auto& s) { return s->gpu_total > 0; });
     constexpr int kPart = 22;
     constexpr int kNum  = 10;
-
-    // Color a row by utilization — same thresholds as row_color.
-    auto util_color = [&](const std::string& row, int used, int total) -> std::string {
-      if (total == 0 || used == 0)              return slurm::Colors.inactive(row);
-      double r = (double)used / total;
-      if      (r > 0.8) return slurm::Colors.critical(row);
-      else if (r > 0.4) return slurm::Colors.warning(row);
-      else              return slurm::Colors.healthy(row);
-    };
 
     // Build a formatted table row (partition + numeric columns).
     auto make_row = [&](const std::string& part, int nodes_n,
@@ -140,11 +127,11 @@ int main(int argc, char** argv) {
     int kpi_cpu_tot = 0, kpi_cpu_use = 0;
     int kpi_gpu_tot = 0, kpi_gpu_use = 0;
     for (const auto& s : summaries) {
-      if (s.partition.find("ckpt") != std::string::npos) continue;
-      kpi_cpu_tot += s.cpu_total;
-      kpi_cpu_use += s.cpu_alloc;
-      kpi_gpu_tot += s.gpu_total;
-      kpi_gpu_use += s.gpu_used;
+      if (s->key.find("ckpt") != std::string::npos) continue;
+      kpi_cpu_tot += s->cpu_total;
+      kpi_cpu_use += s->cpu_alloc;
+      kpi_gpu_tot += s->gpu_total;
+      kpi_gpu_use += s->gpu_used;
     }
 
     // Print colored KPI summary line.
@@ -153,20 +140,20 @@ int main(int argc, char** argv) {
       kpi << "CPUs: " << kpi_cpu_use << "/" << kpi_cpu_tot;
       if (has_gpus)
         kpi << "   GPUs: " << kpi_gpu_use << "/" << kpi_gpu_tot;
-      std::cout << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
+      std::cout << slurm::util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
     }
 
     std::string hdr = make_header();
     std::cout << hdr << "\n";
 
     for (const auto& s : summaries) {
-      std::string row = make_row(s.partition, s.nodes,
-                                 s.cpu_total, s.cpu_alloc, s.cpu_idle,
-                                 s.gpu_total, s.gpu_used, s.gpu_total - s.gpu_used);
+      std::string row = make_row(s->key, s->nodes,
+                                 s->cpu_total, s->cpu_alloc, s->cpu_idle,
+                                 s->gpu_total, s->gpu_used, s->gpu_total - s->gpu_used);
       // GPU-only partitions: color by GPU utilization; otherwise CPU.
-      int used  = (s.cpu_total == 0 && s.gpu_total > 0) ? s.gpu_used  : s.cpu_alloc;
-      int total = (s.cpu_total == 0 && s.gpu_total > 0) ? s.gpu_total : s.cpu_total;
-      std::cout << util_color(row, used, total) << "\n";
+      int used  = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_used  : s->cpu_alloc;
+      int total = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_total : s->cpu_total;
+      std::cout << slurm::util_color(row, used, total) << "\n";
     }
 
     std::cout << hdr << "\n";

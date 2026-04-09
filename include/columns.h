@@ -10,27 +10,35 @@
 
 namespace slurm {
 
-  /*
-   *
-   *                  COLUMN IDs
-   *
-   */
-
   enum class ColumnID {
     // Stat aggregate columns
-    Key, Total, Running, Pending, Suspended, Stopped,
+    Key,
+    Total,
+    Running,
+    Pending,
+    Suspended,
+    Stopped,
     // Job (squeue) columns
-    CPUs, Mem, GPU, Reason, IsArray, IsInteractive,
-    JobID, Partition, Name, User, Account, State, Time, TimeLimit, Nodes,
+    CPUs,
+    Mem,
+    GPU,
+    Reason,
+    IsArray,
+    IsInteractive,
+    JobID,
+    Partition,
+    Name,
+    User,
+    Account,
+    State,
+    Time,
+    TimeLimit,
+    Nodes,
     // Node (sinfo) columns
-    CPUsState, GresTotal, GresUsed
+    CPUsState,
+    GresTotal,
+    GresUsed
   };
-
-  /*
-   *
-   *                  COLUMN STRUCTS
-   *
-   */
 
   struct ColumnBase {
     ColumnID    id;
@@ -46,10 +54,11 @@ namespace slurm {
     void        (*parse)(Job&, const std::string&);
   };
 
-  struct SinfoColumn : ColumnBase {
+  struct NodeColumn : ColumnBase {
     // label = sinfo -O field name (e.g. "Partition")
     // width = exact output width in bytes (sinfo -O has no field separator)
-    void (*parse)(Node&, const std::string&);
+    std::string (*extract)(const Node&);
+    void        (*parse)(Node&, const std::string&);
   };
 
   template<typename KeyFn>
@@ -59,7 +68,11 @@ namespace slurm {
 
   /*
    *
-   *                  JOB COLUMNS
+   *                  Job Columns
+   *
+   * These are the columns that can be parsed from SLURM's squeue output,
+   * aggregated, and then printed in our report. The Job columns also carry the
+   * formatting string used to construct the squeue query string.
    *
    */
 
@@ -167,14 +180,19 @@ namespace slurm {
     /*parse=   */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
   };
 
+
   /*
    *
-   *                  NODE COLUMNS
+   *                  Node Columns
+   *
+   * These are the columns that can be parsed from SLURM's sinfo output,
+   * aggregated, and then printed in our report. The sinfo format strings have
+   * separators ("LABEL:VALUE" style) so there is no need for fixed width
+   * separators, unlike squeue and job column instances.
    *
    */
 
   //                     Parsing helpers
-
   // Parse "allocated/idle/other/total" CPUsState string → {alloc, idle, total}.
   inline std::tuple<int,int,int> parse_cpus_state(const std::string& s) {
     auto tok = [&](int idx) -> int {
@@ -219,28 +237,31 @@ namespace slurm {
     return (end == std::string::npos) ? "" : s.substr(0, end + 1);
   }
 
-  //                     Column instances
+  //                     column instances
 
-  constexpr SinfoColumn scol_partition = {
-    /*base=  */ {ColumnID::Partition, "Partition", 25, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_partition = {
+    /*base=    */ {ColumnID::Partition, "Partition", 25, true},
+    /*extract= */ [](const Node& n) { return n.partition; },
+    /*parse=   */ [](Node& n, const std::string& s) {
       auto t = utils::trim(s);
       if (!t.empty() && t.back() == '*') t.pop_back();
       n.partition = t;
     }
   };
 
-  constexpr SinfoColumn scol_nodes = {
-    /*base=  */ {ColumnID::Nodes, "Nodes", 6, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_nodes = {
+    /*base=    */ {ColumnID::Nodes, "Nodes", 6, true},
+    /*extract= */ [](const Node& n) { return std::to_string(n.node_count); },
+    /*parse=   */ [](Node& n, const std::string& s) {
       auto v = utils::string_to<int>(utils::trim(s));
       if (v) n.node_count = *v;
     }
   };
 
-  constexpr SinfoColumn scol_cpus_state = {
-    /*base=  */ {ColumnID::CPUsState, "CPUsState", 25, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_cpus_state = {
+    /*base=    */ {ColumnID::CPUsState, "CPUsState", 25, true},
+    /*extract= */ [](const Node& n) { return std::to_string(n.cpu_total); },
+    /*parse=   */ [](Node& n, const std::string& s) {
       auto [alloc, idle, total] = parse_cpus_state(utils::trim(s));
       n.cpu_alloc = alloc;
       n.cpu_idle  = idle;
@@ -248,35 +269,41 @@ namespace slurm {
     }
   };
 
-  constexpr SinfoColumn scol_gres = {
-    /*base=  */ {ColumnID::GresTotal, "Gres", 25, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_gres = {
+    /*base=    */ {ColumnID::GresTotal, "Gres", 25, true},
+    /*extract= */ [](const Node& n) { return n.gpu_type + ":" + std::to_string(n.gpu_total); },
+    /*parse=   */ [](Node& n, const std::string& s) {
       auto t      = utils::trim(s);
       n.gpu_total = parse_gres_count(t);
       n.gpu_type  = parse_gres_type(t);
     }
   };
 
-  constexpr SinfoColumn scol_gres_used = {
-    /*base=  */ {ColumnID::GresUsed, "GresUsed", 40, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_gres_used = {
+    /*base=    */ {ColumnID::GresUsed, "GresUsed", 40, true},
+    /*extract= */ [](const Node& n) { return std::to_string(n.gpu_used); },
+    /*parse=   */ [](Node& n, const std::string& s) {
       n.gpu_used = parse_gres_count(utils::trim(s));
     }
   };
 
-  constexpr SinfoColumn scol_state = {
-    /*base=  */ {ColumnID::State, "StateLong", 20, true},
-    /*parse= */ [](Node& n, const std::string& s) {
+  constexpr NodeColumn scol_state = {
+    /*base=    */ {ColumnID::State, "StateLong", 20, true},
+    /*extract= */ [](const Node& n) { return n.state; },
+    /*parse=   */ [](Node& n, const std::string& s) {
       n.state = strip_state_suffix(utils::trim(s));
     }
   };
 
+
   /*
    *
-   *                  STAT COLUMNS
+   *                  Stat columns
+   *
+   * These are the columns that are not parsed out of SLURM
+   * output, but are results of aggregation and are printed.
    *
    */
-
   template<typename KeyFn>
   constexpr StatColumn<KeyFn> col_key = {
     /*base=    */ {ColumnID::Key, KeyFn::label, 0, true},
@@ -315,15 +342,23 @@ namespace slurm {
 
 } // namespace slurm
 
-namespace slurm::by {
 
+namespace slurm::by {
   /*
    *
-   *                  KEY FUNCTIONS
+   *                  Views
+   *
+   * These are the policies that define aggregated views of SLURM output.
+   * A view bundles: the record type being grouped, the entry type that
+   * accumulates fields, the key extractor, and the ordered column list
+   * that defines the table shape. Adding a new view means adding one
+   * struct here — no other files need to change.
    *
    */
 
   struct AccountKeyFn {
+    using record_type = Job;
+    using entry_type  = JobEntry;
     static constexpr const char* label = "ACCOUNT";
 
     std::string operator()(const Job& job) const { return job.account; }
@@ -347,6 +382,8 @@ namespace slurm::by {
   };
 
   struct UserKeyFn {
+    using record_type = Job;
+    using entry_type  = JobEntry;
     static constexpr const char* label = "USER";
 
     std::string operator()(const Job& job) const { return job.user; }
@@ -370,6 +407,8 @@ namespace slurm::by {
   };
 
   struct PartitionKeyFn {
+    using record_type = Job;
+    using entry_type  = JobEntry;
     static constexpr const char* label = "PARTITION";
 
     std::string operator()(const Job& job) const { return job.partition; }
@@ -387,6 +426,30 @@ namespace slurm::by {
         col_pending<PartitionKeyFn>,
         col_suspended<PartitionKeyFn>,
         col_stopped<PartitionKeyFn>,
+      };
+      return cols;
+    }
+  };
+
+  struct NodePartitionKeyFn {
+    using record_type = Node;
+    using entry_type  = NodeEntry;
+    static constexpr const char* label = "PARTITION";
+
+    std::string operator()(const Node& n) const { return n.partition; }
+
+    static const std::vector<StatColumn<NodePartitionKeyFn>>& columns() {
+      static const std::vector<StatColumn<NodePartitionKeyFn>> cols = {
+      // This is the stat column instantiation, StatColumn<key>( Column base, print format function pointer)
+      //{ ColumnBase{id,       label,    width, visible}, std::string(*extract)(const sptr_stat<KeyFn>&)}
+        {{ColumnID::Key,       "PARTITION", 22, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return s->key; }},
+        {{ColumnID::Nodes,     "NODES",     10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->nodes); }},
+        {{ColumnID::CPUsState, "CPU_TOT",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_total); }},
+        {{ColumnID::CPUsState, "CPU_USE",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_alloc); }},
+        {{ColumnID::CPUsState, "CPU_FREE",  10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_idle); }},
+        {{ColumnID::GresTotal, "GPU_TOT",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_total); }},
+        {{ColumnID::GresUsed,  "GPU_USE",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_used); }},
+        {{ColumnID::GresUsed,  "GPU_FREE",  10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_total - s->gpu_used); }},
       };
       return cols;
     }

@@ -59,5 +59,22 @@ namespace slurm {
 
   using Jobs = std::vector<Job>;
 
+  struct JobEntry {
+    std::string key;
+    int njobs = 0;
+    std::array<int, NSTATES> jstates{};
+
+    JobEntry(const std::string& k, const Job& job) : key(k), njobs(1) {
+      auto idx = JobStatus[job.state];
+      if (idx) jstates[*idx] += 1;
+    }
+
+    void update(const Job& job) {
+      njobs += 1;
+      auto idx = JobStatus[job.state];
+      if (idx) jstates[*idx] += 1;
+    }
+  };
+
 } // namespace slurm
 #endif // SLURM_JOBS_H

@@ -15,37 +15,34 @@
 
 namespace slurm {
 
-  /*
-   *
-   *                  ABSTRACT AGGREGATOR
-   *
-   */
-
   template<typename KeyFn>
   struct StatCollection {
+
+    using Record = typename KeyFn::record_type;
+    using Entry  = typename KeyFn::entry_type;
 
     std::string label;
     std::vector<sptr_stat<KeyFn>> stats;
     std::unordered_map<std::string, sptr_stat<KeyFn>> lup;
 
-    StatCollection(const Jobs& job_vec, KeyFn keyfn, std::string label = "NAME")
-      : label(std::move(label)) {
-      stats.reserve(job_vec.size());
+    StatCollection(const std::vector<Record>& records, KeyFn keyfn, std::string lbl = "NAME")
+      : label(std::move(lbl)) {
+      stats.reserve(records.size());
 
-      for (size_t i = 0; i < job_vec.size(); i++) {
-        auto keyval = keyfn(job_vec[i]);
+      for (const auto& r : records) {
+        auto keyval = keyfn(r);
         auto it     = lup.find(keyval);
         if (it != lup.end()) {
-          it->second->update(job_vec[i]);
+          it->second->update(r);
         } else {
-          stats.push_back(std::make_shared<Entry<KeyFn>>(job_vec[i], keyfn));
+          stats.push_back(std::make_shared<Entry>(keyval, r));
           lup[keyval] = stats.back();
         }
       }
     }
 
-    StatCollection(const Jobs& job_vec)
-      : StatCollection(job_vec, KeyFn{}, KeyFn::label) {}
+    StatCollection(const std::vector<Record>& records)
+      : StatCollection(records, KeyFn{}, KeyFn::label) {}
 
     typename std::vector<sptr_stat<KeyFn>>::iterator begin() { return stats.begin(); }
     typename std::vector<sptr_stat<KeyFn>>::iterator end()   { return stats.end();   }
@@ -57,20 +54,13 @@ namespace slurm {
   using AccountStats   = StatCollection<by::AccountKeyFn>;
   using UserStats      = StatCollection<by::UserKeyFn>;
   using PartitionStats = StatCollection<by::PartitionKeyFn>;
+  using NodeStats      = StatCollection<by::NodePartitionKeyFn>;
 
   /*
    *
-   *                  RENDERING HELPERS
+   *                  Printing utils
    *
    */
-
-  // Select row color based on job state distribution.
-  inline std::string row_color(const std::string& row, int running, int pending, int njobs) {
-    if      (running == 0)                  return Colors.inactive(row);
-    else if ((double)pending / njobs > 0.8) return Colors.critical(row);
-    else if ((double)pending / njobs > 0.4) return Colors.warning(row);
-    else                                    return Colors.healthy(row);
-  }
 
   // Key column width: at least label+2, expanded to fit the longest key value.
   template<typename KeyFn>
@@ -94,7 +84,7 @@ namespace slurm {
 
   /*
    *
-   *                  PRINTERS
+   *                  Printers
    *
    */
 

@@ -64,8 +64,8 @@ namespace slurm {
 
   struct SinfoParser {
 
-    static const std::vector<SinfoColumn>& columns() {
-      static const std::vector<SinfoColumn> cols = {
+    static const std::vector<NodeColumn>& columns() {
+      static const std::vector<NodeColumn> cols = {
         scol_partition,
         scol_nodes,
         scol_cpus_state,
