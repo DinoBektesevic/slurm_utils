@@ -32,12 +32,12 @@ namespace slurm {
   // Returns 0 for "(null)" or non-GPU gres strings.
   inline int parse_gres_count(const std::string& s) {
     if (s.empty() || s == "(null)" || s.find("gpu") == std::string::npos) return 0;
-    auto p = s.rfind(':');
+    // Strip "(IDX:...)" before searching for the count — otherwise rfind(':')
+    // lands inside the IDX suffix instead of before the count token.
+    auto cleaned = s.substr(0, s.find('('));
+    auto p = cleaned.rfind(':');
     if (p == std::string::npos) return 0;
-    auto tok = s.substr(p + 1);
-    auto paren = tok.find('(');
-    if (paren != std::string::npos) tok = tok.substr(0, paren);
-    auto v = utils::string_to<int>(utils::trim(tok));
+    auto v = utils::string_to<int>(utils::trim(cleaned.substr(p + 1)));
     return v ? *v : 0;
   }
 
@@ -71,7 +71,10 @@ namespace slurm {
     /*field_name=*/ "Partition",
     /*fw_width=  */ 25,
     /*parse=     */ [](Node& n, const std::string& s) {
-      n.partition = utils::trim(s);
+      auto t = utils::trim(s);
+      // Strip default-partition marker '*'.
+      if (!t.empty() && t.back() == '*') t.pop_back();
+      n.partition = t;
     }
   };
 

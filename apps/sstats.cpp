@@ -93,33 +93,86 @@ int main(int argc, char** argv) {
                 return a.partition < b.partition;
               });
 
-    // Header
     bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
                                 [](const slurm::NodeSummary& s) { return s.gpu_total > 0; });
-    constexpr int kPart  = 22;
-    constexpr int kNum   = 10;
-    auto pw = [&](int w, const std::string& s) {
-      std::cout << std::left << std::setw(w) << s;
-    };
-    auto rw = [&](int w, int v) {
-      std::cout << std::right << std::setw(w) << v;
+    constexpr int kPart = 22;
+    constexpr int kNum  = 10;
+
+    // Color a row by utilization — same thresholds as row_color.
+    auto util_color = [&](const std::string& row, int used, int total) -> std::string {
+      if (total == 0 || used == 0)              return slurm::Colors.inactive(row);
+      double r = (double)used / total;
+      if      (r > 0.8) return slurm::Colors.critical(row);
+      else if (r > 0.4) return slurm::Colors.warning(row);
+      else              return slurm::Colors.healthy(row);
     };
 
-    pw(kPart, "PARTITION");
-    pw(kNum,  "NODES");
-    pw(kNum,  "CPU_TOT"); pw(kNum, "CPU_USE"); pw(kNum, "CPU_FREE");
-    if (has_gpus)
-      pw(kNum, "GPU_TOT"), pw(kNum, "GPU_USE"), pw(kNum, "GPU_FREE");
-    std::cout << "\n";
+    // Build a formatted table row (partition + numeric columns).
+    auto make_row = [&](const std::string& part, int nodes_n,
+                        int cpu_tot, int cpu_use, int cpu_free,
+                        int gpu_tot, int gpu_use, int gpu_free) -> std::string {
+      std::ostringstream oss;
+      oss << std::left  << std::setw(kPart) << part
+          << std::right << std::setw(kNum)  << nodes_n
+          << std::right << std::setw(kNum)  << cpu_tot
+          << std::right << std::setw(kNum)  << cpu_use
+          << std::right << std::setw(kNum)  << cpu_free;
+      if (has_gpus)
+        oss << std::right << std::setw(kNum) << gpu_tot
+            << std::right << std::setw(kNum) << gpu_use
+            << std::right << std::setw(kNum) << gpu_free;
+      return oss.str();
+    };
+
+    // Header uses the same layout so columns align with data rows.
+    auto make_header = [&]() -> std::string {
+      std::ostringstream oss;
+      oss << std::left  << std::setw(kPart) << "PARTITION"
+          << std::right << std::setw(kNum)  << "NODES"
+          << std::right << std::setw(kNum)  << "CPU_TOT"
+          << std::right << std::setw(kNum)  << "CPU_USE"
+          << std::right << std::setw(kNum)  << "CPU_FREE";
+      if (has_gpus)
+        oss << std::right << std::setw(kNum) << "GPU_TOT"
+            << std::right << std::setw(kNum) << "GPU_USE"
+            << std::right << std::setw(kNum) << "GPU_FREE";
+      return oss.str();
+    };
+
+    // KPI totals: skip "ckpt" partitions to avoid double-counting shared hardware.
+    int kpi_cpu_tot = 0, kpi_cpu_use = 0;
+    int kpi_gpu_tot = 0, kpi_gpu_use = 0;
+    for (const auto& s : summaries) {
+      if (s.partition.find("ckpt") != std::string::npos) continue;
+      kpi_cpu_tot += s.cpu_total;
+      kpi_cpu_use += s.cpu_alloc;
+      kpi_gpu_tot += s.gpu_total;
+      kpi_gpu_use += s.gpu_used;
+    }
+
+    // Print colored KPI summary line.
+    {
+      std::ostringstream kpi;
+      kpi << "CPUs: " << kpi_cpu_use << "/" << kpi_cpu_tot;
+      if (has_gpus)
+        kpi << "   GPUs: " << kpi_gpu_use << "/" << kpi_gpu_tot;
+      std::cout << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
+    }
+
+    std::string hdr = make_header();
+    std::cout << hdr << "\n";
 
     for (const auto& s : summaries) {
-      pw(kPart, s.partition);
-      rw(kNum,  s.nodes);
-      rw(kNum,  s.cpu_total); rw(kNum, s.cpu_alloc); rw(kNum, s.cpu_idle);
-      if (has_gpus)
-        rw(kNum, s.gpu_total), rw(kNum, s.gpu_used), rw(kNum, s.gpu_total - s.gpu_used);
-      std::cout << "\n";
+      std::string row = make_row(s.partition, s.nodes,
+                                 s.cpu_total, s.cpu_alloc, s.cpu_idle,
+                                 s.gpu_total, s.gpu_used, s.gpu_total - s.gpu_used);
+      // GPU-only partitions: color by GPU utilization; otherwise CPU.
+      int used  = (s.cpu_total == 0 && s.gpu_total > 0) ? s.gpu_used  : s.cpu_alloc;
+      int total = (s.cpu_total == 0 && s.gpu_total > 0) ? s.gpu_total : s.cpu_total;
+      std::cout << util_color(row, used, total) << "\n";
     }
+
+    std::cout << hdr << "\n";
   }
 
   return 0;
