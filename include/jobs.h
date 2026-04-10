@@ -64,6 +64,9 @@ namespace slurm {
     int njobs = 0;
     std::array<int, NSTATES> jstates{};
 
+    // TODO: accumulating cpu and mem totals here would enable
+    // account/user-level resource KPIs (e.g. "account X holds 4800 CPUs").
+
     JobEntry(const std::string& k, const Job& job) : key(k), njobs(1) {
       auto idx = JobStatus[job.state];
       if (idx) jstates[*idx] += 1;

@@ -1,6 +1,7 @@
 #ifndef SLURM_COLUMNS_H
 #define SLURM_COLUMNS_H
 
+#include <cctype>
 #include <string>
 #include <vector>
 
@@ -305,7 +306,9 @@ namespace slurm {
     /*base=   */ {ColumnID::State, "StateLong", 20, true},
     /*extract=*/ [](const Node& n) { return n.state; },
     /*parse=  */ [](Node& n, const std::string& s) {
-      n.state = strip_state_suffix(utils::trim(s));
+      auto t = strip_state_suffix(utils::trim(s));
+      for (auto& c : t) c = static_cast<char>(std::toupper((unsigned char)c));
+      n.state = t;
     }
   };
 

@@ -22,14 +22,12 @@ namespace slurm {
     using Record = typename View::record_type;
     using Entry  = typename View::entry_type;
 
-    std::string label;
     std::vector<sptr_stat<View>> stats;
     std::unordered_map<std::string, sptr_stat<View>> lup;
 
-    StatCollection(const std::vector<Record>& records, View keyfn, std::string lbl = "NAME")
-      : label(std::move(lbl)) {
+    StatCollection(const std::vector<Record>& records) {
+      View keyfn;
       stats.reserve(records.size());
-
       for (const auto& r : records) {
         auto keyval = keyfn(r);
         auto it     = lup.find(keyval);
@@ -41,9 +39,6 @@ namespace slurm {
         }
       }
     }
-
-    StatCollection(const std::vector<Record>& records)
-      : StatCollection(records, View{}, View::label) {}
 
     typename std::vector<sptr_stat<View>>::iterator begin() { return stats.begin(); }
     typename std::vector<sptr_stat<View>>::iterator end()   { return stats.end();   }
@@ -240,7 +235,7 @@ namespace slurm {
         if (j.gpu) { gpu_run += run; gpu_pen += pen; }
         else        { cpu_run += run; cpu_pen += pen; }
       }
-      int total = cpu_run + cpu_pen + gpu_run + gpu_pen;
+      int total = static_cast<int>(jobs.size());
 
       std::ostringstream kpi;
       kpi << "CPU  running: " << std::setw(6) << cpu_run
@@ -250,7 +245,7 @@ namespace slurm {
       out << kpi.str();
 
       std::ostringstream tot;
-      tot << "              total: " << std::setw(6) << total;
+      tot << "        total jobs: " << std::setw(6) << total;
       out << util_color(tot.str(), cpu_run + gpu_run, total) << "\n\n";
     }
 
