@@ -54,9 +54,10 @@ namespace slurm {
         start += c.fw_width;
       }
 
-      // Job IDs are always positive integers. If the ID field didn't parse
-      // as one, this is a header line — skip it.
-      if (!utils::string_to<int>(job.id)) return std::nullopt;
+      // Job IDs start with a digit. If the ID field doesn't, this is a
+      // header line — skip it. (Array jobs have IDs like "34502192_74"
+      // which don't parse as plain ints but are still valid.)
+      if (job.id.empty() || !std::isdigit((unsigned char)job.id[0])) return std::nullopt;
 
       return job;
     }
