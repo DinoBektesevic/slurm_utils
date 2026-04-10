@@ -50,6 +50,7 @@ namespace slurm {
   struct JobColumn : ColumnBase {
     const char*  fw_spec;   // squeue --format spec, e.g. "%.18i"
     int          fw_width;  // fixed-width parse width incl. trailing space
+    int          max_width; // display cap (0 = unlimited)
     std::string (*extract)(const Job&);
     void        (*parse)(Job&, const std::string&);
   };
@@ -61,9 +62,9 @@ namespace slurm {
     void        (*parse)(Node&, const std::string&);
   };
 
-  template<typename KeyFn>
+  template<typename View>
   struct StatColumn : ColumnBase {
-    std::string (*extract)(const sptr_stat<KeyFn>&);
+    std::string (*extract)(const sptr_stat<View>&);
   };
 
   /*
@@ -77,107 +78,120 @@ namespace slurm {
    */
 
   constexpr JobColumn jcol_id = {
-    /*base=    */ {ColumnID::JobID, "JOBID", 19, true},
-    /*fw_spec= */ "%.18i",
-    /*fw_width=*/ 19,
-    /*extract= */ [](const Job& j) { return j.id; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.id = utils::trim(s); }
+    /*base=     */ {ColumnID::JobID, "JOBID", 19, true},
+    /*fw_spec=  */ "%.18i",
+    /*fw_width= */ 19,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.id; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.id = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_partition = {
-    /*base=    */ {ColumnID::Partition, "PARTITION", 21, true},
-    /*fw_spec= */ "%.20P",
-    /*fw_width=*/ 21,
-    /*extract= */ [](const Job& j) { return j.partition; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.partition = utils::trim(s); }
+    /*base=     */ {ColumnID::Partition, "PARTITION", 21, true},
+    /*fw_spec=  */ "%.20P",
+    /*fw_width= */ 21,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.partition; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.partition = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_name = {
-    /*base=    */ {ColumnID::Name, "NAME", 56, true},
-    /*fw_spec= */ "%.55j",
-    /*fw_width=*/ 56,
-    /*extract= */ [](const Job& j) { return j.name; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.name = utils::trim(s); }
+    /*base=     */ {ColumnID::Name, "NAME", 56, true},
+    /*fw_spec=  */ "%.55j",
+    /*fw_width= */ 56,
+    /*max_width=*/ 22,
+    /*extract=  */ [](const Job& j) { return j.name; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.name = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_user = {
-    /*base=    */ {ColumnID::User, "USER", 9, true},
-    /*fw_spec= */ "%.8u",
-    /*fw_width=*/ 9,
-    /*extract= */ [](const Job& j) { return j.user; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.user = utils::trim(s); }
+    /*base=     */ {ColumnID::User, "USER", 9, true},
+    /*fw_spec=  */ "%.8u",
+    /*fw_width= */ 9,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.user; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.user = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_account = {
-    /*base=    */ {ColumnID::Account, "ACCOUNT", 20, true},
-    /*fw_spec= */ "%.19a",
-    /*fw_width=*/ 20,
-    /*extract= */ [](const Job& j) { return j.account; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.account = utils::trim(s); }
+    /*base=     */ {ColumnID::Account, "ACCOUNT", 20, true},
+    /*fw_spec=  */ "%.19a",
+    /*fw_width= */ 20,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.account; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.account = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_state = {
-    /*base=    */ {ColumnID::State, "STATE", 9, true},
-    /*fw_spec= */ "%.8T",
-    /*fw_width=*/ 9,
-    /*extract= */ [](const Job& j) { return j.state; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.state = utils::trim(s); }
+    /*base=     */ {ColumnID::State, "STATE", 9, true},
+    /*fw_spec=  */ "%.8T",
+    /*fw_width= */ 9,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.state; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.state = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_time = {
-    /*base=    */ {ColumnID::Time, "TIME", 11, true},
-    /*fw_spec= */ "%.10M",
-    /*fw_width=*/ 11,
-    /*extract= */ [](const Job& j) { return j.time; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.time = utils::trim(s); }
+    /*base=     */ {ColumnID::Time, "TIME", 11, true},
+    /*fw_spec=  */ "%.10M",
+    /*fw_width= */ 11,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.time; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.time = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_tlim = {
-    /*base=    */ {ColumnID::TimeLimit, "TIME_LIMIT", 10, true},
-    /*fw_spec= */ "%.9l",
-    /*fw_width=*/ 10,
-    /*extract= */ [](const Job& j) { return j.tlim; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.tlim = utils::trim(s); }
+    /*base=     */ {ColumnID::TimeLimit, "TIME_LIMIT", 10, true},
+    /*fw_spec=  */ "%.9l",
+    /*fw_width= */ 10,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.tlim; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.tlim = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_nodes = {
-    /*base=    */ {ColumnID::Nodes, "NODES", 7, true},
-    /*fw_spec= */ "%.6D",
-    /*fw_width=*/ 7,
-    /*extract= */ [](const Job& j) { return std::to_string(j.nodes); },
-    /*parse=   */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.nodes = *v; }
+    /*base=     */ {ColumnID::Nodes, "NODES", 7, true},
+    /*fw_spec=  */ "%.6D",
+    /*fw_width= */ 7,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return std::to_string(j.nodes); },
+    /*parse=    */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.nodes = *v; }
   };
 
   constexpr JobColumn jcol_reason = {
-    /*base=    */ {ColumnID::Reason, "REASON", 21, true},
-    /*fw_spec= */ "%.20R",
-    /*fw_width=*/ 21,
-    /*extract= */ [](const Job& j) { return j.reason; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.reason = utils::trim(s); }
+    /*base=     */ {ColumnID::Reason, "REASON", 21, true},
+    /*fw_spec=  */ "%.20R",
+    /*fw_width= */ 21,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.reason; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.reason = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_cpus = {
-    /*base=    */ {ColumnID::CPUs, "CPUS", 7, true},
-    /*fw_spec= */ "%.6C",
-    /*fw_width=*/ 7,
-    /*extract= */ [](const Job& j) { return std::to_string(j.cpus); },
-    /*parse=   */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.cpus = *v; }
+    /*base=     */ {ColumnID::CPUs, "CPUS", 7, true},
+    /*fw_spec=  */ "%.6C",
+    /*fw_width= */ 7,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return std::to_string(j.cpus); },
+    /*parse=    */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.cpus = *v; }
   };
 
   constexpr JobColumn jcol_gres = {
-    /*base=    */ {ColumnID::GPU, "GRES", 15, true},
-    /*fw_spec= */ "%.14b",
-    /*fw_width=*/ 15,
-    /*extract= */ [](const Job& j) -> std::string { return j.gpu ? "yes" : ""; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.gpu = !s.empty() && s != "(null)"; }
+    /*base=     */ {ColumnID::GPU, "GRES", 15, true},
+    /*fw_spec=  */ "%.14b",
+    /*fw_width= */ 15,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) -> std::string { return j.gpu ? "yes" : ""; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.gpu = !s.empty() && s != "(null)"; }
   };
 
   constexpr JobColumn jcol_mem = {
-    /*base=    */ {ColumnID::Mem, "MIN_MEM", 10, true},
-    /*fw_spec= */ "%.10m",
-    /*fw_width=*/ 10,
-    /*extract= */ [](const Job& j) { return j.mem; },
-    /*parse=   */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
+    /*base=     */ {ColumnID::Mem, "MIN_MEM", 10, true},
+    /*fw_spec=  */ "%.10m",
+    /*fw_width= */ 10,
+    /*max_width=*/ 0,
+    /*extract=  */ [](const Job& j) { return j.mem; },
+    /*parse=    */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
   };
 
 
@@ -240,9 +254,9 @@ namespace slurm {
   //                     column instances
 
   constexpr NodeColumn ncol_partition = {
-    /*base=    */ {ColumnID::Partition, "Partition", 25, true},
-    /*extract= */ [](const Node& n) { return n.partition; },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::Partition, "Partition", 25, true},
+    /*extract=*/ [](const Node& n) { return n.partition; },
+    /*parse=  */ [](Node& n, const std::string& s) {
       auto t = utils::trim(s);
       if (!t.empty() && t.back() == '*') t.pop_back();
       n.partition = t;
@@ -250,18 +264,18 @@ namespace slurm {
   };
 
   constexpr NodeColumn ncol_nodes = {
-    /*base=    */ {ColumnID::Nodes, "Nodes", 6, true},
-    /*extract= */ [](const Node& n) { return std::to_string(n.node_count); },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::Nodes, "Nodes", 6, true},
+    /*extract=*/ [](const Node& n) { return std::to_string(n.node_count); },
+    /*parse=  */ [](Node& n, const std::string& s) {
       auto v = utils::string_to<int>(utils::trim(s));
       if (v) n.node_count = *v;
     }
   };
 
   constexpr NodeColumn ncol_cpus_state = {
-    /*base=    */ {ColumnID::CPUsState, "CPUsState", 25, true},
-    /*extract= */ [](const Node& n) { return std::to_string(n.cpu_total); },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::CPUsState, "CPUsState", 25, true},
+    /*extract=*/ [](const Node& n) { return std::to_string(n.cpu_total); },
+    /*parse=  */ [](Node& n, const std::string& s) {
       auto [alloc, idle, total] = parse_cpus_state(utils::trim(s));
       n.cpu_alloc = alloc;
       n.cpu_idle  = idle;
@@ -270,9 +284,9 @@ namespace slurm {
   };
 
   constexpr NodeColumn ncol_gres = {
-    /*base=    */ {ColumnID::GresTotal, "Gres", 25, true},
-    /*extract= */ [](const Node& n) { return n.gpu_type + ":" + std::to_string(n.gpu_total); },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::GresTotal, "Gres", 25, true},
+    /*extract=*/ [](const Node& n) { return n.gpu_type + ":" + std::to_string(n.gpu_total); },
+    /*parse=  */ [](Node& n, const std::string& s) {
       auto t      = utils::trim(s);
       n.gpu_total = parse_gres_count(t);
       n.gpu_type  = parse_gres_type(t);
@@ -280,17 +294,17 @@ namespace slurm {
   };
 
   constexpr NodeColumn ncol_gres_used = {
-    /*base=    */ {ColumnID::GresUsed, "GresUsed", 40, true},
-    /*extract= */ [](const Node& n) { return std::to_string(n.gpu_used); },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::GresUsed, "GresUsed", 40, true},
+    /*extract=*/ [](const Node& n) { return std::to_string(n.gpu_used); },
+    /*parse=  */ [](Node& n, const std::string& s) {
       n.gpu_used = parse_gres_count(utils::trim(s));
     }
   };
 
   constexpr NodeColumn ncol_state = {
-    /*base=    */ {ColumnID::State, "StateLong", 20, true},
-    /*extract= */ [](const Node& n) { return n.state; },
-    /*parse=   */ [](Node& n, const std::string& s) {
+    /*base=   */ {ColumnID::State, "StateLong", 20, true},
+    /*extract=*/ [](const Node& n) { return n.state; },
+    /*parse=  */ [](Node& n, const std::string& s) {
       n.state = strip_state_suffix(utils::trim(s));
     }
   };
@@ -304,40 +318,40 @@ namespace slurm {
    * output, but are results of aggregation and are printed.
    *
    */
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_key = {
-    /*base=    */ {ColumnID::Key, KeyFn::label, 0, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return s->key; }
+  template<typename View>
+  constexpr StatColumn<View> col_key = {
+    /*base=   */ {ColumnID::Key, View::label, 0, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return s->key; }
   };
 
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_total = {
-    /*base=    */ {ColumnID::Total, "TOTAL", 10, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->njobs); }
+  template<typename View>
+  constexpr StatColumn<View> col_total = {
+    /*base=   */ {ColumnID::Total, "TOTAL", 10, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return std::to_string(s->njobs); }
   };
 
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_running = {
-    /*base=    */ {ColumnID::Running, "RUNNING", 10, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->jstates[JobStates::RUNNING]); }
+  template<typename View>
+  constexpr StatColumn<View> col_running = {
+    /*base=   */ {ColumnID::Running, "RUNNING", 10, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return std::to_string(s->jstates[JobStates::RUNNING]); }
   };
 
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_pending = {
-    /*base=    */ {ColumnID::Pending, "PENDING", 10, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->jstates[JobStates::PENDING]); }
+  template<typename View>
+  constexpr StatColumn<View> col_pending = {
+    /*base=   */ {ColumnID::Pending, "PENDING", 10, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return std::to_string(s->jstates[JobStates::PENDING]); }
   };
 
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_suspended = {
-    /*base=    */ {ColumnID::Suspended, "SUSPENDED", 10, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->jstates[JobStates::SUSPENDED]); }
+  template<typename View>
+  constexpr StatColumn<View> col_suspended = {
+    /*base=   */ {ColumnID::Suspended, "SUSPENDED", 10, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return std::to_string(s->jstates[JobStates::SUSPENDED]); }
   };
 
-  template<typename KeyFn>
-  constexpr StatColumn<KeyFn> col_stopped = {
-    /*base=    */ {ColumnID::Stopped, "STOPPED", 10, true},
-    /*extract= */ [](const sptr_stat<KeyFn>& s) { return std::to_string(s->jstates[JobStates::STOPPED]); }
+  template<typename View>
+  constexpr StatColumn<View> col_stopped = {
+    /*base=   */ {ColumnID::Stopped, "STOPPED", 10, true},
+    /*extract=*/ [](const sptr_stat<View>& s) { return std::to_string(s->jstates[JobStates::STOPPED]); }
   };
 
 } // namespace slurm
@@ -348,108 +362,109 @@ namespace slurm::by {
    *
    *                  Views
    *
-   * These are the policies that define aggregated views of SLURM output.
-   * A view bundles: the record type being grouped, the entry type that
+   * Each View bundles: the record type being grouped, the entry type that
    * accumulates fields, the key extractor, and the ordered column list
    * that defines the table shape. Adding a new view means adding one
    * struct here — no other files need to change.
    *
    */
 
-  struct AccountKeyFn {
+  struct AccountView {
     using record_type = Job;
     using entry_type  = JobEntry;
     static constexpr const char* label = "ACCOUNT";
 
     std::string operator()(const Job& job) const { return job.account; }
 
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
-    }
-
-    static const std::vector<StatColumn<AccountKeyFn>>& columns() {
-      static const std::vector<StatColumn<AccountKeyFn>> cols = {
-        col_key<AccountKeyFn>,
-        col_total<AccountKeyFn>,
-        col_running<AccountKeyFn>,
-        col_pending<AccountKeyFn>,
-        col_suspended<AccountKeyFn>,
-        col_stopped<AccountKeyFn>,
+    static const std::vector<StatColumn<AccountView>>& columns() {
+      static const std::vector<StatColumn<AccountView>> cols = {
+        col_key<AccountView>,
+        col_total<AccountView>,
+        col_running<AccountView>,
+        col_pending<AccountView>,
+        col_suspended<AccountView>,
+        col_stopped<AccountView>,
       };
       return cols;
     }
   };
 
-  struct UserKeyFn {
+  struct UserView {
     using record_type = Job;
     using entry_type  = JobEntry;
     static constexpr const char* label = "USER";
 
     std::string operator()(const Job& job) const { return job.user; }
 
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
-    }
-
-    static const std::vector<StatColumn<UserKeyFn>>& columns() {
-      static const std::vector<StatColumn<UserKeyFn>> cols = {
-        col_key<UserKeyFn>,
-        col_total<UserKeyFn>,
-        col_running<UserKeyFn>,
-        col_pending<UserKeyFn>,
-        col_suspended<UserKeyFn>,
-        col_stopped<UserKeyFn>,
+    static const std::vector<StatColumn<UserView>>& columns() {
+      static const std::vector<StatColumn<UserView>> cols = {
+        col_key<UserView>,
+        col_total<UserView>,
+        col_running<UserView>,
+        col_pending<UserView>,
+        col_suspended<UserView>,
+        col_stopped<UserView>,
       };
       return cols;
     }
   };
 
-  struct PartitionKeyFn {
+  struct PartitionView {
     using record_type = Job;
     using entry_type  = JobEntry;
     static constexpr const char* label = "PARTITION";
 
     std::string operator()(const Job& job) const { return job.partition; }
 
-    static std::string format_key(const std::string& key, int width) {
-      if ((int)key.size() <= width) return key;
-      return key.substr(0, width - 1) + "\xe2\x80\xa6"; // "…"
-    }
-
-    static const std::vector<StatColumn<PartitionKeyFn>>& columns() {
-      static const std::vector<StatColumn<PartitionKeyFn>> cols = {
-        col_key<PartitionKeyFn>,
-        col_total<PartitionKeyFn>,
-        col_running<PartitionKeyFn>,
-        col_pending<PartitionKeyFn>,
-        col_suspended<PartitionKeyFn>,
-        col_stopped<PartitionKeyFn>,
+    static const std::vector<StatColumn<PartitionView>>& columns() {
+      static const std::vector<StatColumn<PartitionView>> cols = {
+        col_key<PartitionView>,
+        col_total<PartitionView>,
+        col_running<PartitionView>,
+        col_pending<PartitionView>,
+        col_suspended<PartitionView>,
+        col_stopped<PartitionView>,
       };
       return cols;
     }
   };
 
-  struct NodePartitionKeyFn {
+  struct NodeView {
     using record_type = Node;
     using entry_type  = NodeEntry;
     static constexpr const char* label = "PARTITION";
 
     std::string operator()(const Node& n) const { return n.partition; }
 
-    static const std::vector<StatColumn<NodePartitionKeyFn>>& columns() {
-      static const std::vector<StatColumn<NodePartitionKeyFn>> cols = {
-      // This is the stat column instantiation, StatColumn<key>( Column base, print format function pointer)
-      //{ ColumnBase{id,       label,    width, visible}, std::string(*extract)(const sptr_stat<KeyFn>&)}
-        {{ColumnID::Key,       "PARTITION", 22, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return s->key; }},
-        {{ColumnID::Nodes,     "NODES",     10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->nodes); }},
-        {{ColumnID::CPUsState, "CPU_TOT",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_total); }},
-        {{ColumnID::CPUsState, "CPU_USE",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_alloc); }},
-        {{ColumnID::CPUsState, "CPU_FREE",  10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->cpu_idle); }},
-        {{ColumnID::GresTotal, "GPU_TOT",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_total); }},
-        {{ColumnID::GresUsed,  "GPU_USE",   10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_used); }},
-        {{ColumnID::GresUsed,  "GPU_FREE",  10, true}, [](const sptr_stat<NodePartitionKeyFn>& s) { return std::to_string(s->gpu_total - s->gpu_used); }},
+    static const std::vector<StatColumn<NodeView>>& columns() {
+      static const std::vector<StatColumn<NodeView>> cols = {
+        {{ColumnID::Key,       "PARTITION", 22, true}, [](const sptr_stat<NodeView>& s) { return s->key; }},
+        {{ColumnID::Nodes,     "NODES",     10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->nodes); }},
+        {{ColumnID::CPUsState, "CPU_TOT",   10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->cpu_total); }},
+        {{ColumnID::CPUsState, "CPU_USE",   10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->cpu_alloc); }},
+        {{ColumnID::CPUsState, "CPU_FREE",  10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->cpu_idle); }},
+        {{ColumnID::GresTotal, "GPU_TOT",   10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->gpu_total); }},
+        {{ColumnID::GresUsed,  "GPU_USE",   10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->gpu_used); }},
+        {{ColumnID::GresUsed,  "GPU_FREE",  10, true}, [](const sptr_stat<NodeView>& s) { return std::to_string(s->gpu_total - s->gpu_used); }},
+      };
+      return cols;
+    }
+  };
+
+  // Flat job listing view: drops NODES, TIME_LIMIT, GRES; NAME capped at 22 chars.
+  struct JobsView {
+    static const std::vector<JobColumn>& columns() {
+      static const std::vector<JobColumn> cols = {
+        jcol_id,
+        jcol_partition,
+        jcol_name,
+        jcol_user,
+        jcol_account,
+        jcol_state,
+        jcol_time,
+        jcol_reason,
+        jcol_cpus,
+        jcol_mem,
       };
       return cols;
     }

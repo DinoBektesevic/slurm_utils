@@ -16,17 +16,17 @@
 
 namespace slurm {
 
-  template<typename KeyFn>
+  template<typename View>
   struct StatCollection {
 
-    using Record = typename KeyFn::record_type;
-    using Entry  = typename KeyFn::entry_type;
+    using Record = typename View::record_type;
+    using Entry  = typename View::entry_type;
 
     std::string label;
-    std::vector<sptr_stat<KeyFn>> stats;
-    std::unordered_map<std::string, sptr_stat<KeyFn>> lup;
+    std::vector<sptr_stat<View>> stats;
+    std::unordered_map<std::string, sptr_stat<View>> lup;
 
-    StatCollection(const std::vector<Record>& records, KeyFn keyfn, std::string lbl = "NAME")
+    StatCollection(const std::vector<Record>& records, View keyfn, std::string lbl = "NAME")
       : label(std::move(lbl)) {
       stats.reserve(records.size());
 
@@ -43,38 +43,29 @@ namespace slurm {
     }
 
     StatCollection(const std::vector<Record>& records)
-      : StatCollection(records, KeyFn{}, KeyFn::label) {}
+      : StatCollection(records, View{}, View::label) {}
 
-    typename std::vector<sptr_stat<KeyFn>>::iterator begin() { return stats.begin(); }
-    typename std::vector<sptr_stat<KeyFn>>::iterator end()   { return stats.end();   }
+    typename std::vector<sptr_stat<View>>::iterator begin() { return stats.begin(); }
+    typename std::vector<sptr_stat<View>>::iterator end()   { return stats.end();   }
 
-    typename std::vector<sptr_stat<KeyFn>>::const_iterator begin() const { return stats.begin(); }
-    typename std::vector<sptr_stat<KeyFn>>::const_iterator end()   const { return stats.end();   }
+    typename std::vector<sptr_stat<View>>::const_iterator begin() const { return stats.begin(); }
+    typename std::vector<sptr_stat<View>>::const_iterator end()   const { return stats.end();   }
   };
 
-  using AccountStats   = StatCollection<by::AccountKeyFn>;
-  using UserStats      = StatCollection<by::UserKeyFn>;
-  using PartitionStats = StatCollection<by::PartitionKeyFn>;
-  using NodeStats      = StatCollection<by::NodePartitionKeyFn>;
+  using AccountStats   = StatCollection<by::AccountView>;
+  using UserStats      = StatCollection<by::UserView>;
+  using PartitionStats = StatCollection<by::PartitionView>;
+  using NodeStats      = StatCollection<by::NodeView>;
 
   /*
    *
-   *                  Printing utils
+   *                  Rendering utilities
    *
    */
 
-  // Key column width: at least label+2, expanded to fit the longest key value.
-  template<typename KeyFn>
-  int key_width(const StatCollection<KeyFn>& col) {
-    int w = static_cast<int>(std::string(KeyFn::label).size()) + 2;
-    for (const auto& s : col.stats)
-      w = std::max(w, static_cast<int>(s->key.size()) + 2);
-    return w;
-  }
-
-  // Render a header row given the column list and the resolved key column width.
-  template<typename KeyFn>
-  std::string render_header(const std::vector<StatColumn<KeyFn>>& cols, int kw) {
+  // Render a header row for aggregated stat views (key column uses kw, others use c.width).
+  template<typename View>
+  std::string render_header(const std::vector<StatColumn<View>>& cols, int kw) {
     std::ostringstream s;
     for (const auto& c : cols) {
       if (c.id == ColumnID::Key) s << std::left << std::setw(kw)      << c.label;
@@ -83,15 +74,63 @@ namespace slurm {
     return s.str();
   }
 
+  // Render a header row for flat job views (widths precomputed).
+  inline std::string render_header(const std::vector<JobColumn>& cols,
+                                   const std::vector<int>& widths) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < cols.size(); ++i)
+      oss << std::left << std::setw(widths[i]) << cols[i].label;
+    return oss.str();
+  }
+
+  // Compute dynamic column widths: start at label width, expand to fit content,
+  // then cap at max_width if set.
+  inline std::vector<int> compute_widths(const std::vector<JobColumn>& cols,
+                                         const Jobs& jobs) {
+    std::vector<int> widths(cols.size());
+    for (size_t i = 0; i < cols.size(); ++i)
+      widths[i] = static_cast<int>(std::string(cols[i].label).size()) + 1;
+    for (const auto& job : jobs)
+      for (size_t i = 0; i < cols.size(); ++i)
+        widths[i] = std::max(widths[i], static_cast<int>(cols[i].extract(job).size()) + 1);
+    for (size_t i = 0; i < cols.size(); ++i)
+      if (cols[i].max_width > 0)
+        widths[i] = std::min(widths[i], cols[i].max_width);
+    return widths;
+  }
+
+  // Render one job row; truncates cells whose column has a max_width set.
+  inline std::string render_row(const std::vector<JobColumn>& cols,
+                                const std::vector<int>& widths,
+                                const Job& job) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < cols.size(); ++i) {
+      std::string val = cols[i].extract(job);
+      if (cols[i].max_width > 0)
+        val = utils::truncate(val, widths[i] - 1);
+      oss << std::left << std::setw(widths[i]) << val;
+    }
+    return oss.str();
+  }
+
+  // Key column width: at least label+2, expanded to fit the longest key value.
+  template<typename View>
+  int key_width(const StatCollection<View>& col) {
+    int w = static_cast<int>(std::string(View::label).size()) + 2;
+    for (const auto& s : col.stats)
+      w = std::max(w, static_cast<int>(s->key.size()) + 2);
+    return w;
+  }
+
   /*
    *
    *                  Printers
    *
    */
 
-  template<typename KeyFn>
-  std::ostream& operator<<(std::ostream& outs, const StatCollection<KeyFn>& col) {
-    const auto& cols = KeyFn::columns();
+  template<typename View>
+  std::ostream& print_stats(std::ostream& outs, const StatCollection<View>& col) {
+    const auto& cols = View::columns();
     int kw  = key_width(col);
     auto hdr = render_header(cols, kw);
 
@@ -116,8 +155,8 @@ namespace slurm {
     for (const auto& job : all_jobs)
       by_account[job.account].push_back(job);
 
-    const auto& acc_cols = by::AccountKeyFn::columns();
-    const auto& usr_cols = by::UserKeyFn::columns();
+    const auto& acc_cols = by::AccountView::columns();
+    const auto& usr_cols = by::UserView::columns();
 
     /* The way I want this table to work is
      * ACCOUNT      TOTAL   RUNNING   PENDING SUSPENDED  STOPPED
@@ -143,7 +182,7 @@ namespace slurm {
      */
     // User prefix: "  · " — 4 visual chars, 5 bytes (U+00B7 is 2 UTF-8 bytes).
     // setw uses byte count, so user rows need setw(kw + prefix_bytes) to hit kw+4 visually.
-    static constexpr const char* user_prefix        = "  \xC2\xB7 ";
+    static constexpr const char* user_prefix = "  \xC2\xB7 ";
 
     // kw: enough for account names +2 gap within their effective column.
     int kw = key_width(accounts);
@@ -166,9 +205,9 @@ namespace slurm {
       // User sub-rows — numbers at visual column kw + user_indent.
       auto it = by_account.find(s->key);
       if (it != by_account.end()) {
-        StatCollection<by::UserKeyFn> user_stats(it->second);
+        StatCollection<by::UserView> user_stats(it->second);
         std::sort(user_stats.begin(), user_stats.end(),
-                  [](const sptr_stat<by::UserKeyFn>& a, const sptr_stat<by::UserKeyFn>& b) {
+                  [](const sptr_stat<by::UserView>& a, const sptr_stat<by::UserView>& b) {
                     return a->jstates[JobStates::RUNNING] > b->jstates[JobStates::RUNNING];
                   });
         for (const auto& u : user_stats) {
@@ -188,32 +227,40 @@ namespace slurm {
     out << hdr << "\n";
   }
 
-  inline void print_jobs(std::ostream& out, const Jobs& jobs, const std::vector<JobColumn>& cols) {
+  inline void print_jobs(std::ostream& out, const Jobs& jobs, const by::JobsView&) {
     if (jobs.empty()) return;
 
-    // Dynamic widths: at least wide enough for the label, expanded to fit content.
-    std::vector<int> widths(cols.size());
-    for (size_t i = 0; i < cols.size(); ++i)
-      widths[i] = static_cast<int>(std::string(cols[i].label).size()) + 1;
-    for (const auto& job : jobs)
-      for (size_t i = 0; i < cols.size(); ++i)
-        widths[i] = std::max(widths[i], static_cast<int>(cols[i].extract(job).size()) + 1);
+    // KPI block: CPU and GPU job counts by state.
+    {
+      int cpu_run = 0, cpu_pen = 0;
+      int gpu_run = 0, gpu_pen = 0;
+      for (const auto& j : jobs) {
+        bool run = j.state == "RUNNING";
+        bool pen = j.state == "PENDING";
+        if (j.gpu) { gpu_run += run; gpu_pen += pen; }
+        else        { cpu_run += run; cpu_pen += pen; }
+      }
+      int total = cpu_run + cpu_pen + gpu_run + gpu_pen;
 
-    auto render_hdr = [&]() {
-      std::ostringstream oss;
-      for (size_t i = 0; i < cols.size(); ++i)
-        oss << std::left << std::setw(widths[i]) << cols[i].label;
-      return oss.str();
-    };
+      std::ostringstream kpi;
+      kpi << "CPU  running: " << std::setw(6) << cpu_run
+          << "   pending: "   << std::setw(6) << cpu_pen << "\n"
+          << "GPU  running: " << std::setw(6) << gpu_run
+          << "   pending: "   << std::setw(6) << gpu_pen << "\n";
+      out << kpi.str();
 
-    std::string hdr = render_hdr();
-    out << hdr << "\n";
-    for (const auto& job : jobs) {
-      std::ostringstream oss;
-      for (size_t i = 0; i < cols.size(); ++i)
-        oss << std::left << std::setw(widths[i]) << cols[i].extract(job);
-      out << job_color(oss.str(), job.state) << "\n";
+      std::ostringstream tot;
+      tot << "              total: " << std::setw(6) << total;
+      out << util_color(tot.str(), cpu_run + gpu_run, total) << "\n\n";
     }
+
+    const auto& cols = by::JobsView::columns();
+    auto widths = compute_widths(cols, jobs);
+    std::string hdr = render_header(cols, widths);
+
+    out << hdr << "\n";
+    for (const auto& job : jobs)
+      out << job_color(render_row(cols, widths, job), job.state) << "\n";
     out << hdr << "\n";
   }
 
@@ -221,7 +268,7 @@ namespace slurm {
     bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
                                 [](const auto& s) { return s->gpu_total > 0; });
 
-    const auto& cols = by::NodePartitionKeyFn::columns();
+    const auto& cols = by::NodeView::columns();
 
     auto is_gpu_col = [](ColumnID id) {
       return id == ColumnID::GresTotal || id == ColumnID::GresUsed;
@@ -254,11 +301,11 @@ namespace slurm {
       out << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
     }
 
-    std::string hdr = render([](const StatColumn<by::NodePartitionKeyFn>& c) { return c.label; });
+    std::string hdr = render([](const StatColumn<by::NodeView>& c) { return c.label; });
     out << hdr << "\n";
 
     for (const auto& s : summaries) {
-      std::string row = render([&](const StatColumn<by::NodePartitionKeyFn>& c) { return c.extract(s); });
+      std::string row = render([&](const StatColumn<by::NodeView>& c) { return c.extract(s); });
       int used  = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_used  : s->cpu_alloc;
       int total = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_total : s->cpu_total;
       out << util_color(row, used, total) << "\n";

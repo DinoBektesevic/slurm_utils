@@ -95,17 +95,17 @@ int main(int argc, char** argv) {
       slurm::AccountStats stats(jobs);
       apply_sort(stats);
       if (expand) slurm::print_expanded(std::cout, stats, jobs);
-      else        std::cout << stats << std::endl;
+      else        slurm::print_stats(std::cout, stats) << std::endl;
     }
     if (users->parsed()) {
       slurm::UserStats stats(jobs);
       apply_sort(stats);
-      std::cout << stats << std::endl;
+      slurm::print_stats(std::cout, stats) << std::endl;
     }
     if (partitions->parsed()) {
       slurm::PartitionStats stats(jobs);
       apply_sort(stats);
-      std::cout << stats << std::endl;
+      slurm::print_stats(std::cout, stats) << std::endl;
     }
     if (job_listing->parsed()) {
       std::sort(jobs.begin(), jobs.end(), [&](const slurm::Job& a, const slurm::Job& b) {
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
         return a.id < b.id;
       });
       if (reverse) std::reverse(jobs.begin(), jobs.end());
-      slurm::print_jobs(std::cout, jobs, slurm::FixedWidthParser::columns());
+      slurm::print_jobs(std::cout, jobs, slurm::by::JobsView{});
     }
   }
 

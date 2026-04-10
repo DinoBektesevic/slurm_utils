@@ -26,4 +26,13 @@ namespace slurm::utils {
     return result;
   }
 
+  std::string truncate( const std::string& s, int max_chars, TruncSide side ) {
+    static constexpr const char* ellipsis = "\xe2\x80\xa6"; // UTF-8 "…"
+    if (max_chars <= 0 || (int)s.size() <= max_chars) return s;
+    if (side == TruncSide::Right)
+      return s.substr(0, max_chars - 1) + ellipsis;
+    else
+      return ellipsis + s.substr(s.size() - (max_chars - 1));
+  }
+
 } // namespace slurm::utils

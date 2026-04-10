@@ -19,5 +19,12 @@ namespace slurm::utils {
   std::string trim( const std::string& s );
   std::string exec( const char* cmd );
 
+  enum class TruncSide { Left, Right };
+
+  // Truncate s to at most max_chars visual characters (assumes ASCII content).
+  // Replaces the dropped end with "…" (U+2026). Returns s unchanged if short enough.
+  std::string truncate( const std::string& s, int max_chars,
+                        TruncSide side = TruncSide::Right );
+
 } // namespace slurm::utils
 #endif // SLURM_UTILS_H
