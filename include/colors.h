@@ -58,9 +58,8 @@ namespace slurm {
   inline ColorScheme Colors;
 
   inline std::string ratio_color(const std::string& row, double ratio) {
-    if (ratio == 0.0) return Colors.inactive(row);
-    if (ratio > 0.8)  return Colors.critical(row);
-    if (ratio > 0.4)  return Colors.warning(row);
+    if (ratio > 0.8) return Colors.critical(row);
+    if (ratio > 0.4) return Colors.warning(row);
     return Colors.healthy(row);
   }
 
@@ -70,7 +69,7 @@ namespace slurm {
   }
 
   inline std::string util_color(const std::string& row, int used, int total) {
-    if (total == 0) return Colors.inactive(row);
+    if (total == 0 || used == 0) return Colors.inactive(row);
     return ratio_color(row, (double)used / total);
   }
 
