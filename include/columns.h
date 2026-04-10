@@ -82,7 +82,7 @@ namespace slurm {
     /*base=     */ {ColumnID::JobID, "JOBID", 19, true},
     /*fw_spec=  */ "%.18i",
     /*fw_width= */ 19,
-    /*max_width=*/ 0,
+    /*max_width=*/ 16,
     /*extract=  */ [](const Job& j) { return j.id; },
     /*parse=    */ [](Job& j, const std::string& s) { j.id = utils::trim(s); }
   };
@@ -100,7 +100,7 @@ namespace slurm {
     /*base=     */ {ColumnID::Name, "NAME", 56, true},
     /*fw_spec=  */ "%.55j",
     /*fw_width= */ 56,
-    /*max_width=*/ 22,
+    /*max_width=*/ 18,
     /*extract=  */ [](const Job& j) { return j.name; },
     /*parse=    */ [](Job& j, const std::string& s) { j.name = utils::trim(s); }
   };
@@ -143,8 +143,8 @@ namespace slurm {
 
   constexpr JobColumn jcol_tlim = {
     /*base=     */ {ColumnID::TimeLimit, "TIME_LIMIT", 10, true},
-    /*fw_spec=  */ "%.9l",
-    /*fw_width= */ 10,
+    /*fw_spec=  */ "%.12l",
+    /*fw_width= */ 13,
     /*max_width=*/ 0,
     /*extract=  */ [](const Job& j) { return j.tlim; },
     /*parse=    */ [](Job& j, const std::string& s) { j.tlim = utils::trim(s); }
@@ -163,7 +163,7 @@ namespace slurm {
     /*base=     */ {ColumnID::Reason, "REASON", 21, true},
     /*fw_spec=  */ "%.20R",
     /*fw_width= */ 21,
-    /*max_width=*/ 0,
+    /*max_width=*/ 26,
     /*extract=  */ [](const Job& j) { return j.reason; },
     /*parse=    */ [](Job& j, const std::string& s) { j.reason = utils::trim(s); }
   };
@@ -190,7 +190,7 @@ namespace slurm {
     /*base=     */ {ColumnID::Mem, "MIN_MEM", 10, true},
     /*fw_spec=  */ "%.10m",
     /*fw_width= */ 10,
-    /*max_width=*/ 0,
+    /*max_width=*/ 7,
     /*extract=  */ [](const Job& j) { return j.mem; },
     /*parse=    */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
   };

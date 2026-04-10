@@ -28,23 +28,26 @@ int main(int argc, char** argv) {
   accounts->add_option("--sort",      sort_by,     "Sort by: running, pending, total, name");
   accounts->add_flag("--reverse",     reverse,     "Reverse sort order");
   accounts->add_flag("--expand",      expand,      "Show per-user breakdown under each account");
-  accounts->add_option("--user",      f_user,      "Show only jobs by this user");
-  accounts->add_option("--partition", f_partition, "Show only jobs in this partition");
-  accounts->add_option("--state",     f_state,     "Show only jobs in this state");
+  accounts->add_option("--user",  f_user,  "Show only jobs by this user");
+  accounts->add_option("--state", f_state, "Show only jobs in this state");
 
   auto* users = app.add_subcommand("users", "Job counts grouped by user");
   users->add_option("--sort",      sort_by,     "Sort by: running, pending, total, name");
   users->add_flag("--reverse",     reverse,     "Reverse sort order");
   users->add_option("--account",   f_account,   "Show only jobs from this account");
   users->add_option("--partition", f_partition, "Show only jobs in this partition");
-  users->add_option("--state",     f_state,     "Show only jobs in this state");
 
   auto* partitions = app.add_subcommand("partitions", "Job counts grouped by partition");
   partitions->add_option("--sort",    sort_by,   "Sort by: running, pending, total, name");
   partitions->add_flag("--reverse",   reverse,   "Reverse sort order");
   partitions->add_option("--user",    f_user,    "Show only jobs by this user");
   partitions->add_option("--account", f_account, "Show only jobs from this account");
-  partitions->add_option("--state",   f_state,   "Show only jobs in this state");
+
+  std::string f_node_state;
+  auto* nodes = app.add_subcommand("nodes", "Node resource usage by partition");
+  nodes->add_option("--state", f_node_state,
+                    "Filter by node state\n"
+                    "                              (IDLE, MIXED, ALLOCATED, DOWN, DRAIN)");
 
   auto* job_listing = app.add_subcommand("jobs", "Flat listing of individual jobs");
   job_listing->add_option("--sort",      sort_by,     "Sort by: id, user, account, partition, state, name");
@@ -52,12 +55,9 @@ int main(int argc, char** argv) {
   job_listing->add_option("--user",      f_user,      "Show only jobs by this user");
   job_listing->add_option("--account",   f_account,   "Show only jobs from this account");
   job_listing->add_option("--partition", f_partition, "Show only jobs in this partition");
-  job_listing->add_option("--state",     f_state,     "Show only jobs in this state");
-
-  std::string f_node_partition, f_node_state;
-  auto* nodes = app.add_subcommand("nodes", "Node resource usage by partition");
-  nodes->add_option("--partition", f_node_partition, "Show only nodes in this partition");
-  nodes->add_option("--state",     f_node_state,     "Show only nodes in this state");
+  job_listing->add_option("--state",     f_state,
+                          "Filter by job state\n"
+                          "                              (RUNNING, PENDING, FAILED, COMPLETED, SUSPENDED, STOPPED)");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -127,8 +127,7 @@ int main(int argc, char** argv) {
     std::istringstream sinfoout( slurm::utils::exec(sinfo_cmd.c_str()) );
 
     slurm::FilterSet<slurm::Node> nf;
-    nf.add(slurm::ncol_partition.extract, f_node_partition);
-    nf.add(slurm::ncol_state.extract,     f_node_state);
+    nf.add(slurm::ncol_state.extract, f_node_state);
     slurm::Nodes raw = nf.apply(slurm::SinfoParser{}(sinfoout));
 
     slurm::NodeStats summaries(raw);
