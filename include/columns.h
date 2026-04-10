@@ -48,9 +48,9 @@ namespace slurm {
   };
 
   struct JobColumn : ColumnBase {
-    std::string (*extract)(const Job&);
     const char*  fw_spec;   // squeue --format spec, e.g. "%.18i"
     int          fw_width;  // fixed-width parse width incl. trailing space
+    std::string (*extract)(const Job&);
     void        (*parse)(Job&, const std::string&);
   };
 
@@ -78,105 +78,105 @@ namespace slurm {
 
   constexpr JobColumn jcol_id = {
     /*base=    */ {ColumnID::JobID, "JOBID", 19, true},
-    /*extract= */ [](const Job& j) { return j.id; },
     /*fw_spec= */ "%.18i",
     /*fw_width=*/ 19,
+    /*extract= */ [](const Job& j) { return j.id; },
     /*parse=   */ [](Job& j, const std::string& s) { j.id = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_partition = {
     /*base=    */ {ColumnID::Partition, "PARTITION", 21, true},
-    /*extract= */ [](const Job& j) { return j.partition; },
     /*fw_spec= */ "%.20P",
     /*fw_width=*/ 21,
+    /*extract= */ [](const Job& j) { return j.partition; },
     /*parse=   */ [](Job& j, const std::string& s) { j.partition = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_name = {
     /*base=    */ {ColumnID::Name, "NAME", 56, true},
-    /*extract= */ [](const Job& j) { return j.name; },
     /*fw_spec= */ "%.55j",
     /*fw_width=*/ 56,
+    /*extract= */ [](const Job& j) { return j.name; },
     /*parse=   */ [](Job& j, const std::string& s) { j.name = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_user = {
     /*base=    */ {ColumnID::User, "USER", 9, true},
-    /*extract= */ [](const Job& j) { return j.user; },
     /*fw_spec= */ "%.8u",
     /*fw_width=*/ 9,
+    /*extract= */ [](const Job& j) { return j.user; },
     /*parse=   */ [](Job& j, const std::string& s) { j.user = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_account = {
     /*base=    */ {ColumnID::Account, "ACCOUNT", 20, true},
-    /*extract= */ [](const Job& j) { return j.account; },
     /*fw_spec= */ "%.19a",
     /*fw_width=*/ 20,
+    /*extract= */ [](const Job& j) { return j.account; },
     /*parse=   */ [](Job& j, const std::string& s) { j.account = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_state = {
     /*base=    */ {ColumnID::State, "STATE", 9, true},
-    /*extract= */ [](const Job& j) { return j.state; },
     /*fw_spec= */ "%.8T",
     /*fw_width=*/ 9,
+    /*extract= */ [](const Job& j) { return j.state; },
     /*parse=   */ [](Job& j, const std::string& s) { j.state = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_time = {
     /*base=    */ {ColumnID::Time, "TIME", 11, true},
-    /*extract= */ [](const Job& j) { return j.time; },
     /*fw_spec= */ "%.10M",
     /*fw_width=*/ 11,
+    /*extract= */ [](const Job& j) { return j.time; },
     /*parse=   */ [](Job& j, const std::string& s) { j.time = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_tlim = {
     /*base=    */ {ColumnID::TimeLimit, "TIME_LIMIT", 10, true},
-    /*extract= */ [](const Job& j) { return j.tlim; },
     /*fw_spec= */ "%.9l",
     /*fw_width=*/ 10,
+    /*extract= */ [](const Job& j) { return j.tlim; },
     /*parse=   */ [](Job& j, const std::string& s) { j.tlim = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_nodes = {
     /*base=    */ {ColumnID::Nodes, "NODES", 7, true},
-    /*extract= */ [](const Job& j) { return std::to_string(j.nodes); },
     /*fw_spec= */ "%.6D",
     /*fw_width=*/ 7,
+    /*extract= */ [](const Job& j) { return std::to_string(j.nodes); },
     /*parse=   */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.nodes = *v; }
   };
 
   constexpr JobColumn jcol_reason = {
     /*base=    */ {ColumnID::Reason, "REASON", 21, true},
-    /*extract= */ [](const Job& j) { return j.reason; },
     /*fw_spec= */ "%.20R",
     /*fw_width=*/ 21,
+    /*extract= */ [](const Job& j) { return j.reason; },
     /*parse=   */ [](Job& j, const std::string& s) { j.reason = utils::trim(s); }
   };
 
   constexpr JobColumn jcol_cpus = {
     /*base=    */ {ColumnID::CPUs, "CPUS", 7, true},
-    /*extract= */ [](const Job& j) { return std::to_string(j.cpus); },
     /*fw_spec= */ "%.6C",
     /*fw_width=*/ 7,
+    /*extract= */ [](const Job& j) { return std::to_string(j.cpus); },
     /*parse=   */ [](Job& j, const std::string& s) { auto v = utils::string_to<int>(s); if (v) j.cpus = *v; }
   };
 
   constexpr JobColumn jcol_gres = {
     /*base=    */ {ColumnID::GPU, "GRES", 15, true},
-    /*extract= */ [](const Job& j) -> std::string { return j.gpu ? "yes" : ""; },
     /*fw_spec= */ "%.14b",
     /*fw_width=*/ 15,
+    /*extract= */ [](const Job& j) -> std::string { return j.gpu ? "yes" : ""; },
     /*parse=   */ [](Job& j, const std::string& s) { j.gpu = !s.empty() && s != "(null)"; }
   };
 
   constexpr JobColumn jcol_mem = {
     /*base=    */ {ColumnID::Mem, "MIN_MEM", 10, true},
-    /*extract= */ [](const Job& j) { return j.mem; },
     /*fw_spec= */ "%.10m",
     /*fw_width=*/ 10,
+    /*extract= */ [](const Job& j) { return j.mem; },
     /*parse=   */ [](Job& j, const std::string& s) { j.mem = utils::trim(s); }
   };
 
@@ -239,7 +239,7 @@ namespace slurm {
 
   //                     column instances
 
-  constexpr NodeColumn scol_partition = {
+  constexpr NodeColumn ncol_partition = {
     /*base=    */ {ColumnID::Partition, "Partition", 25, true},
     /*extract= */ [](const Node& n) { return n.partition; },
     /*parse=   */ [](Node& n, const std::string& s) {
@@ -249,7 +249,7 @@ namespace slurm {
     }
   };
 
-  constexpr NodeColumn scol_nodes = {
+  constexpr NodeColumn ncol_nodes = {
     /*base=    */ {ColumnID::Nodes, "Nodes", 6, true},
     /*extract= */ [](const Node& n) { return std::to_string(n.node_count); },
     /*parse=   */ [](Node& n, const std::string& s) {
@@ -258,7 +258,7 @@ namespace slurm {
     }
   };
 
-  constexpr NodeColumn scol_cpus_state = {
+  constexpr NodeColumn ncol_cpus_state = {
     /*base=    */ {ColumnID::CPUsState, "CPUsState", 25, true},
     /*extract= */ [](const Node& n) { return std::to_string(n.cpu_total); },
     /*parse=   */ [](Node& n, const std::string& s) {
@@ -269,7 +269,7 @@ namespace slurm {
     }
   };
 
-  constexpr NodeColumn scol_gres = {
+  constexpr NodeColumn ncol_gres = {
     /*base=    */ {ColumnID::GresTotal, "Gres", 25, true},
     /*extract= */ [](const Node& n) { return n.gpu_type + ":" + std::to_string(n.gpu_total); },
     /*parse=   */ [](Node& n, const std::string& s) {
@@ -279,7 +279,7 @@ namespace slurm {
     }
   };
 
-  constexpr NodeColumn scol_gres_used = {
+  constexpr NodeColumn ncol_gres_used = {
     /*base=    */ {ColumnID::GresUsed, "GresUsed", 40, true},
     /*extract= */ [](const Node& n) { return std::to_string(n.gpu_used); },
     /*parse=   */ [](Node& n, const std::string& s) {
@@ -287,7 +287,7 @@ namespace slurm {
     }
   };
 
-  constexpr NodeColumn scol_state = {
+  constexpr NodeColumn ncol_state = {
     /*base=    */ {ColumnID::State, "StateLong", 20, true},
     /*extract= */ [](const Node& n) { return n.state; },
     /*parse=   */ [](Node& n, const std::string& s) {

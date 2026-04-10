@@ -19,9 +19,19 @@ namespace slurm {
 
     static const std::vector<JobColumn>& columns() {
       static const std::vector<JobColumn> cols = {
-        jcol_id, jcol_partition, jcol_name,   jcol_user,   jcol_account,
-        jcol_state, jcol_time,   jcol_tlim,   jcol_nodes,  jcol_reason,
-        jcol_cpus,  jcol_gres,   jcol_mem
+        jcol_id,
+        jcol_partition,
+        jcol_name,
+        jcol_user,
+        jcol_account,
+        jcol_state,
+        jcol_time,
+        jcol_tlim,
+        jcol_nodes,
+        jcol_reason,
+        jcol_cpus,
+        jcol_gres,
+        jcol_mem
       };
       return cols;
     }
@@ -66,12 +76,12 @@ namespace slurm {
 
     static const std::vector<NodeColumn>& columns() {
       static const std::vector<NodeColumn> cols = {
-        scol_partition,
-        scol_nodes,
-        scol_cpus_state,
-        scol_gres,
-        scol_gres_used,
-        scol_state
+        ncol_partition,
+        ncol_nodes,
+        ncol_cpus_state,
+        ncol_gres,
+        ncol_gres_used,
+        ncol_state
       };
       return cols;
     }

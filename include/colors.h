@@ -74,5 +74,13 @@ namespace slurm {
     return ratio_color(row, (double)used / total);
   }
 
+  inline std::string job_color(const std::string& row, const std::string& state) {
+    if (state == "RUNNING")                                        return Colors.healthy(row);
+    if (state == "PENDING")                                        return Colors.warning(row);
+    if (state == "FAILED" || state == "STOPPED"
+     || state == "PREEMPTED" || state == "COMPLETING")             return Colors.critical(row);
+    return Colors.inactive(row);
+  }
+
 } // namespace slurm
 #endif // SLURM_COLOR_H

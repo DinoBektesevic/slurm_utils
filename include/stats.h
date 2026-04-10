@@ -1,6 +1,7 @@
 #ifndef SLURM_STATS_H
 #define SLURM_STATS_H
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -184,6 +185,85 @@ namespace slurm {
         }
       }
     }
+    out << hdr << "\n";
+  }
+
+  inline void print_jobs(std::ostream& out, const Jobs& jobs, const std::vector<JobColumn>& cols) {
+    if (jobs.empty()) return;
+
+    // Dynamic widths: at least wide enough for the label, expanded to fit content.
+    std::vector<int> widths(cols.size());
+    for (size_t i = 0; i < cols.size(); ++i)
+      widths[i] = static_cast<int>(std::string(cols[i].label).size()) + 1;
+    for (const auto& job : jobs)
+      for (size_t i = 0; i < cols.size(); ++i)
+        widths[i] = std::max(widths[i], static_cast<int>(cols[i].extract(job).size()) + 1);
+
+    auto render_hdr = [&]() {
+      std::ostringstream oss;
+      for (size_t i = 0; i < cols.size(); ++i)
+        oss << std::left << std::setw(widths[i]) << cols[i].label;
+      return oss.str();
+    };
+
+    std::string hdr = render_hdr();
+    out << hdr << "\n";
+    for (const auto& job : jobs) {
+      std::ostringstream oss;
+      for (size_t i = 0; i < cols.size(); ++i)
+        oss << std::left << std::setw(widths[i]) << cols[i].extract(job);
+      out << job_color(oss.str(), job.state) << "\n";
+    }
+    out << hdr << "\n";
+  }
+
+  inline void print_nodes(std::ostream& out, const NodeStats& summaries) {
+    bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
+                                [](const auto& s) { return s->gpu_total > 0; });
+
+    const auto& cols = by::NodePartitionKeyFn::columns();
+
+    auto is_gpu_col = [](ColumnID id) {
+      return id == ColumnID::GresTotal || id == ColumnID::GresUsed;
+    };
+
+    auto render = [&](auto cell) -> std::string {
+      std::ostringstream oss;
+      for (const auto& c : cols) {
+        if (is_gpu_col(c.id) && !has_gpus) continue;
+        if (c.id == ColumnID::Key) oss << std::left  << std::setw(c.width) << cell(c);
+        else                       oss << std::right << std::setw(c.width) << cell(c);
+      }
+      return oss.str();
+    };
+
+    // KPI totals: skip "ckpt" partitions to avoid double-counting shared hardware.
+    int kpi_cpu_tot = 0, kpi_cpu_use = 0;
+    int kpi_gpu_tot = 0, kpi_gpu_use = 0;
+    for (const auto& s : summaries) {
+      if (s->key.find("ckpt") != std::string::npos) continue;
+      kpi_cpu_tot += s->cpu_total;
+      kpi_cpu_use += s->cpu_alloc;
+      kpi_gpu_tot += s->gpu_total;
+      kpi_gpu_use += s->gpu_used;
+    }
+    {
+      std::ostringstream kpi;
+      kpi << "CPUs: " << kpi_cpu_use << "/" << kpi_cpu_tot;
+      if (has_gpus) kpi << "   GPUs: " << kpi_gpu_use << "/" << kpi_gpu_tot;
+      out << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
+    }
+
+    std::string hdr = render([](const StatColumn<by::NodePartitionKeyFn>& c) { return c.label; });
+    out << hdr << "\n";
+
+    for (const auto& s : summaries) {
+      std::string row = render([&](const StatColumn<by::NodePartitionKeyFn>& c) { return c.extract(s); });
+      int used  = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_used  : s->cpu_alloc;
+      int total = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_total : s->cpu_total;
+      out << util_color(row, used, total) << "\n";
+    }
+
     out << hdr << "\n";
   }
 
