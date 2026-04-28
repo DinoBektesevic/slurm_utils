@@ -935,6 +935,11 @@ gradle-app.setting
 # # Work around https://youtrack.jetbrains.com/issue/IDEA-116898
 # gradle/wrapper/gradle-wrapper.properties
 
+##### Sphinx
+docs/_build/
+docs/_static/
+docs/_templates/
+
 ##### CMake
 CMakeLists.txt.user
 CMakeCache.txt

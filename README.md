@@ -1,5 +1,7 @@
 # sstats
 
+[![Documentation Status](https://readthedocs.org/projects/slurm-utils/badge/?version=latest)](https://slurm-utils.readthedocs.io/en/latest/)
+
 Aggregate SLURM queue and node statistics — running/pending counts by account, user, and
 partition; per-partition node utilization at a glance.
 
