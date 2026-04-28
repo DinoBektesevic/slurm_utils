@@ -95,17 +95,17 @@ int main(int argc, char** argv) {
       slurm::AccountGroups stats(jobs);
       apply_sort(stats);
       if (expand) slurm::print_job_groups_expanded(std::cout, stats, jobs);
-      else        slurm::print_job_groups(std::cout, stats) << std::endl;
+      else        slurm::print_table(std::cout, stats) << std::endl;
     }
     if (users->parsed()) {
       slurm::UserGroups stats(jobs);
       apply_sort(stats);
-      slurm::print_job_groups(std::cout, stats) << std::endl;
+      slurm::print_table(std::cout, stats) << std::endl;
     }
     if (partitions->parsed()) {
       slurm::PartitionGroups stats(jobs);
       apply_sort(stats);
-      slurm::print_job_groups(std::cout, stats) << std::endl;
+      slurm::print_table(std::cout, stats) << std::endl;
     }
     if (job_listing->parsed()) {
       std::sort(jobs.begin(), jobs.end(), [&](const slurm::Job& a, const slurm::Job& b) {

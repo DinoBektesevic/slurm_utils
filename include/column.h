@@ -289,7 +289,11 @@ namespace slurm::node {
 
   constexpr slurm::NodeColumn col_cpus_state = {
     /*base=   */ {slurm::ColumnID::CPUsState, "CPUsState", 25, true},
-    /*extract=*/ [](const slurm::Node& n) { return std::to_string(n.cpu_total); },
+    /*extract=*/ [](const slurm::Node& n) {
+      return std::to_string(n.cpu_alloc) + "/" +
+             std::to_string(n.cpu_idle)  + "/0/" +
+             std::to_string(n.cpu_total);
+    },
     /*parse=  */ [](slurm::Node& n, const std::string& s) {
       auto [alloc, idle, total] = slurm::parse_cpus_state(slurm::utils::trim(s));
       n.cpu_alloc = alloc;

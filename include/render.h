@@ -156,13 +156,81 @@ namespace slurm {
 
   /*
    *
+   *                  Column visibility filter
+   *
+   * Primary template: all columns visible. Specializations can hide columns
+   * based on runtime data (e.g. NodeView drops GPU columns on CPU-only clusters).
+   *
+   */
+
+  template<typename View>
+  std::vector<AggColumn<View>> visible_columns(const std::vector<AggColumn<View>>& cols,
+                                               const Grouped<View>&) {
+    return cols;
+  }
+
+  template<>
+  inline std::vector<AggColumn<aggregate::NodeView>> visible_columns(
+      const std::vector<AggColumn<aggregate::NodeView>>& cols,
+      const Grouped<aggregate::NodeView>& data) {
+    bool has_gpus = std::any_of(data.begin(), data.end(),
+                                [](const auto& s) { return s->gpu_total > 0; });
+    if (has_gpus) return cols;
+    std::vector<AggColumn<aggregate::NodeView>> out;
+    for (const auto& c : cols)
+      if (c.id != ColumnID::GresTotal && c.id != ColumnID::GresUsed)
+        out.push_back(c);
+    return out;
+  }
+
+  /*
+   *
+   *                  KPI blocks
+   *
+   */
+
+  inline std::string node_kpi(const NodeGroups& summaries) {
+    bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
+                                [](const auto& s) { return s->gpu_total > 0; });
+    int cpu_tot = 0, cpu_use = 0, gpu_tot = 0, gpu_use = 0;
+    for (const auto& s : summaries) {
+      if (s->key.find("ckpt") != std::string::npos) continue;
+      cpu_tot += s->cpu_total;  cpu_use += s->cpu_alloc;
+      gpu_tot += s->gpu_total;  gpu_use += s->gpu_used;
+    }
+    std::ostringstream kpi;
+    kpi << "CPUs: " << cpu_use << "/" << cpu_tot;
+    if (has_gpus) kpi << "   GPUs: " << gpu_use << "/" << gpu_tot;
+    return util_color(kpi.str(), cpu_use, cpu_tot);
+  }
+
+  inline std::string jobs_kpi(const Jobs& jobs) {
+    int cpu_run = 0, cpu_pen = 0, gpu_run = 0, gpu_pen = 0;
+    for (const auto& j : jobs) {
+      bool run = j.state == "RUNNING", pen = j.state == "PENDING";
+      if (j.gpu) { gpu_run += run; gpu_pen += pen; }
+      else        { cpu_run += run; cpu_pen += pen; }
+    }
+    int total = static_cast<int>(jobs.size());
+    std::ostringstream kpi;
+    kpi << "CPU  running: " << std::setw(6) << cpu_run
+        << "   pending: "   << std::setw(6) << cpu_pen << "\n"
+        << "GPU  running: " << std::setw(6) << gpu_run
+        << "   pending: "   << std::setw(6) << gpu_pen << "\n";
+    std::ostringstream tot;
+    tot << "        total jobs: " << std::setw(6) << total;
+    return kpi.str() + util_color(tot.str(), cpu_run + gpu_run, total);
+  }
+
+  /*
+   *
    *                  Printers
    *
    */
 
   template<typename View>
-  std::ostream& print_job_groups(std::ostream& outs, const Grouped<View>& col) {
-    const auto& cols = View::columns();
+  std::ostream& print_table(std::ostream& outs, const Grouped<View>& col) {
+    auto cols = visible_columns(View::columns(), col);
     int kw  = key_width(col);
     auto hdr = render_header(cols, kw);
 
@@ -259,29 +327,7 @@ namespace slurm {
   inline void print_job_list(std::ostream& out, const Jobs& jobs, const aggregate::JobsView&) {
     if (jobs.empty()) return;
 
-    // KPI block: CPU and GPU job counts by state.
-    {
-      int cpu_run = 0, cpu_pen = 0;
-      int gpu_run = 0, gpu_pen = 0;
-      for (const auto& j : jobs) {
-        bool run = j.state == "RUNNING";
-        bool pen = j.state == "PENDING";
-        if (j.gpu) { gpu_run += run; gpu_pen += pen; }
-        else        { cpu_run += run; cpu_pen += pen; }
-      }
-      int total = static_cast<int>(jobs.size());
-
-      std::ostringstream kpi;
-      kpi << "CPU  running: " << std::setw(6) << cpu_run
-          << "   pending: "   << std::setw(6) << cpu_pen << "\n"
-          << "GPU  running: " << std::setw(6) << gpu_run
-          << "   pending: "   << std::setw(6) << gpu_pen << "\n";
-      out << kpi.str();
-
-      std::ostringstream tot;
-      tot << "        total jobs: " << std::setw(6) << total;
-      out << util_color(tot.str(), cpu_run + gpu_run, total) << "\n\n";
-    }
+    out << jobs_kpi(jobs) << "\n\n";
 
     const auto& cols = aggregate::JobsView::columns();
     auto widths = compute_widths(cols, jobs);
@@ -294,51 +340,8 @@ namespace slurm {
   }
 
   inline void print_node_groups(std::ostream& out, const NodeGroups& summaries) {
-    bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
-                                [](const auto& s) { return s->gpu_total > 0; });
-
-    const auto& cols = aggregate::NodeView::columns();
-
-    auto is_gpu_col = [](ColumnID id) {
-      return id == ColumnID::GresTotal || id == ColumnID::GresUsed;
-    };
-
-    auto render = [&](auto cell) -> std::string {
-      std::ostringstream oss;
-      for (const auto& c : cols) {
-        if (is_gpu_col(c.id) && !has_gpus) continue;
-        if (c.id == ColumnID::Key) oss << std::left  << std::setw(c.width) << cell(c);
-        else                       oss << std::right << std::setw(c.width) << cell(c);
-      }
-      return oss.str();
-    };
-
-    // KPI totals: skip "ckpt" partitions to avoid double-counting shared hardware.
-    int kpi_cpu_tot = 0, kpi_cpu_use = 0;
-    int kpi_gpu_tot = 0, kpi_gpu_use = 0;
-    for (const auto& s : summaries) {
-      if (s->key.find("ckpt") != std::string::npos) continue;
-      kpi_cpu_tot += s->cpu_total;
-      kpi_cpu_use += s->cpu_alloc;
-      kpi_gpu_tot += s->gpu_total;
-      kpi_gpu_use += s->gpu_used;
-    }
-    {
-      std::ostringstream kpi;
-      kpi << "CPUs: " << kpi_cpu_use << "/" << kpi_cpu_tot;
-      if (has_gpus) kpi << "   GPUs: " << kpi_gpu_use << "/" << kpi_gpu_tot;
-      out << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
-    }
-
-    std::string hdr = render([](const AggColumn<aggregate::NodeView>& c) { return c.label; });
-    out << hdr << "\n";
-
-    for (const auto& s : summaries) {
-      std::string row = render([&](const AggColumn<aggregate::NodeView>& c) { return c.extract(s); });
-      out << RowColor<aggregate::NodeView>::apply(row, s) << "\n";
-    }
-
-    out << hdr << "\n";
+    out << node_kpi(summaries) << "\n\n";
+    print_table(out, summaries) << std::endl;
   }
 
 } // namespace slurm
