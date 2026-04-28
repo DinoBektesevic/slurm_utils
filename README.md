@@ -12,9 +12,9 @@ saturated, how much GPU capacity is free.
 ```
 $ sstats accounts
 ACCOUNT    TOTAL      RUNNING    PENDING    SUSPENDED  STOPPED
+acc3       3          3          0          0          0
 acc1       12         10         2          0          0
 acc2       47         22         25         0          0
-acc3       3          3          0          0          0
 ACCOUNT    TOTAL      RUNNING    PENDING    SUSPENDED  STOPPED
 ```
 
@@ -33,12 +33,12 @@ PARTITION    NODES      CPU_TOT    CPU_USE    CPU_FREE   GPU_TOT    GPU_USE    G
 $ sstats accounts --expand
 ACCOUNT    TOTAL      RUNNING    PENDING    SUSPENDED  STOPPED
 acc1       12         10         2          0          0
-  · user1  7          6          1          0          0
   · user2  5          4          1          0          0
+  · user1  7          6          1          0          0
 acc2       47         22         25         0          0
-  · user3  20         15         5          0          0
-  · user4  15         5          10         0          0
   · user5  12         2          10         0          0
+  · user4  15         5          10         0          0
+  · user3  20         15         5          0          0
 ACCOUNT    TOTAL      RUNNING    PENDING    SUSPENDED  STOPPED
 ```
 
