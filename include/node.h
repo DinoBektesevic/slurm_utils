@@ -1,5 +1,5 @@
-#ifndef SLURM_NODES_H
-#define SLURM_NODES_H
+#ifndef SLURM_NODE_H
+#define SLURM_NODE_H
 
 #include <string>
 #include <vector>
@@ -44,4 +44,4 @@ namespace slurm {
   };
 
 } // namespace slurm
-#endif // SLURM_NODES_H
+#endif // SLURM_NODE_H

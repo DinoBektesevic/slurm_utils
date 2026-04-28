@@ -1,5 +1,5 @@
-#ifndef SLURM_FILTERS_H
-#define SLURM_FILTERS_H
+#ifndef SLURM_FILTER_H
+#define SLURM_FILTER_H
 
 #include <algorithm>
 #include <functional>
@@ -35,4 +35,4 @@ namespace slurm {
   };
 
 } // namespace slurm
-#endif // SLURM_FILTERS_H
+#endif // SLURM_FILTER_H

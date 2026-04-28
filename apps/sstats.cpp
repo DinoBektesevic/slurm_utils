@@ -4,11 +4,11 @@
 #include <sstream>
 #include <string>
 
-#include "compops.h"
-#include "filters.h"
-#include "parsers.h"
-#include "stats.h"
-#include "utils.h"
+#include "sort.h"
+#include "filter.h"
+#include "parse.h"
+#include "render.h"
+#include "util.h"
 
 int main(int argc, char** argv) {
   CLI::App app{"SLURM statistics utilities"};
@@ -77,35 +77,35 @@ int main(int argc, char** argv) {
 #endif
 
     slurm::FilterSet<slurm::Job> jf;
-    jf.add(slurm::jcol_user.extract,      f_user);
-    jf.add(slurm::jcol_account.extract,   f_account);
-    jf.add(slurm::jcol_partition.extract, f_partition);
-    jf.add(slurm::jcol_state.extract,     f_state);
+    jf.add(slurm::job::col_user.extract,      f_user);
+    jf.add(slurm::job::col_account.extract,   f_account);
+    jf.add(slurm::job::col_partition.extract, f_partition);
+    jf.add(slurm::job::col_state.extract,     f_state);
     slurm::Jobs jobs = jf.apply(parser(squeueout));
 
     auto apply_sort = [&](auto& stats) {
-      if      (sort_by == "pending") std::sort(stats.begin(), stats.end(), slurm::CompareNPending);
-      else if (sort_by == "total")   std::sort(stats.begin(), stats.end(), slurm::CompareNJobs);
-      else if (sort_by == "name")    std::sort(stats.begin(), stats.end(), slurm::CompareKey);
-      else                           std::sort(stats.begin(), stats.end(), slurm::CompareNRunning);
+      if      (sort_by == "pending") std::sort(stats.begin(), stats.end(), slurm::sort_by_pending);
+      else if (sort_by == "total")   std::sort(stats.begin(), stats.end(), slurm::sort_by_njobs);
+      else if (sort_by == "name")    std::sort(stats.begin(), stats.end(), slurm::sort_by_key);
+      else                           std::sort(stats.begin(), stats.end(), slurm::sort_by_running);
       if (reverse) std::reverse(stats.begin(), stats.end());
     };
 
     if (accounts->parsed()) {
-      slurm::AccountStats stats(jobs);
+      slurm::AccountGroups stats(jobs);
       apply_sort(stats);
-      if (expand) slurm::print_expanded(std::cout, stats, jobs);
-      else        slurm::print_stats(std::cout, stats) << std::endl;
+      if (expand) slurm::print_job_groups_expanded(std::cout, stats, jobs);
+      else        slurm::print_job_groups(std::cout, stats) << std::endl;
     }
     if (users->parsed()) {
-      slurm::UserStats stats(jobs);
+      slurm::UserGroups stats(jobs);
       apply_sort(stats);
-      slurm::print_stats(std::cout, stats) << std::endl;
+      slurm::print_job_groups(std::cout, stats) << std::endl;
     }
     if (partitions->parsed()) {
-      slurm::PartitionStats stats(jobs);
+      slurm::PartitionGroups stats(jobs);
       apply_sort(stats);
-      slurm::print_stats(std::cout, stats) << std::endl;
+      slurm::print_job_groups(std::cout, stats) << std::endl;
     }
     if (job_listing->parsed()) {
       std::sort(jobs.begin(), jobs.end(), [&](const slurm::Job& a, const slurm::Job& b) {
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
         return a.id < b.id;
       });
       if (reverse) std::reverse(jobs.begin(), jobs.end());
-      slurm::print_jobs(std::cout, jobs, slurm::by::JobsView{});
+      slurm::print_job_list(std::cout, jobs, slurm::aggregate::JobsView{});
     }
   }
 
@@ -127,12 +127,12 @@ int main(int argc, char** argv) {
     std::istringstream sinfoout( slurm::utils::exec(sinfo_cmd.c_str()) );
 
     slurm::FilterSet<slurm::Node> nf;
-    nf.add(slurm::ncol_state.extract, f_node_state);
+    nf.add(slurm::node::col_state.extract, f_node_state);
     slurm::Nodes raw = nf.apply(slurm::SinfoParser{}(sinfoout));
 
-    slurm::NodeStats summaries(raw);
-    std::sort(summaries.begin(), summaries.end(), slurm::CompareKey);
-    slurm::print_nodes(std::cout, summaries);
+    slurm::NodeGroups summaries(raw);
+    std::sort(summaries.begin(), summaries.end(), slurm::sort_by_key);
+    slurm::print_node_groups(std::cout, summaries);
   }
 
   return 0;

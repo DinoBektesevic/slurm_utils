@@ -1,5 +1,5 @@
-#ifndef SLURM_STATS_H
-#define SLURM_STATS_H
+#ifndef SLURM_RENDER_H
+#define SLURM_RENDER_H
 
 #include <algorithm>
 #include <iomanip>
@@ -10,22 +10,22 @@
 #include <unordered_map>
 #include <vector>
 
-#include "columns.h"
-#include "colors.h"
-#include "jobs.h"
+#include "column.h"
+#include "color.h"
+#include "job.h"
 
 namespace slurm {
 
   template<typename View>
-  struct StatCollection {
+  struct Grouped {
 
     using Record = typename View::record_type;
     using Entry  = typename View::entry_type;
 
-    std::vector<sptr_stat<View>> stats;
-    std::unordered_map<std::string, sptr_stat<View>> lup;
+    std::vector<sptr_agg<View>> stats;
+    std::unordered_map<std::string, sptr_agg<View>> lup;
 
-    StatCollection(const std::vector<Record>& records) {
+    Grouped(const std::vector<Record>& records) {
       View keyfn;
       stats.reserve(records.size());
       for (const auto& r : records) {
@@ -40,17 +40,17 @@ namespace slurm {
       }
     }
 
-    typename std::vector<sptr_stat<View>>::iterator begin() { return stats.begin(); }
-    typename std::vector<sptr_stat<View>>::iterator end()   { return stats.end();   }
+    typename std::vector<sptr_agg<View>>::iterator begin() { return stats.begin(); }
+    typename std::vector<sptr_agg<View>>::iterator end()   { return stats.end();   }
 
-    typename std::vector<sptr_stat<View>>::const_iterator begin() const { return stats.begin(); }
-    typename std::vector<sptr_stat<View>>::const_iterator end()   const { return stats.end();   }
+    typename std::vector<sptr_agg<View>>::const_iterator begin() const { return stats.begin(); }
+    typename std::vector<sptr_agg<View>>::const_iterator end()   const { return stats.end();   }
   };
 
-  using AccountStats   = StatCollection<by::AccountView>;
-  using UserStats      = StatCollection<by::UserView>;
-  using PartitionStats = StatCollection<by::PartitionView>;
-  using NodeStats      = StatCollection<by::NodeView>;
+  using AccountGroups   = Grouped<aggregate::AccountView>;
+  using UserGroups      = Grouped<aggregate::UserView>;
+  using PartitionGroups = Grouped<aggregate::PartitionView>;
+  using NodeGroups      = Grouped<aggregate::NodeView>;
 
   /*
    *
@@ -60,7 +60,7 @@ namespace slurm {
 
   // Render a header row for aggregated stat views (key column uses kw, others use c.width).
   template<typename View>
-  std::string render_header(const std::vector<StatColumn<View>>& cols, int kw) {
+  std::string render_header(const std::vector<AggColumn<View>>& cols, int kw) {
     std::ostringstream s;
     for (const auto& c : cols) {
       if (c.id == ColumnID::Key) s << std::left << std::setw(kw)      << c.label;
@@ -110,7 +110,7 @@ namespace slurm {
 
   // Key column width: at least label+2, expanded to fit the longest key value.
   template<typename View>
-  int key_width(const StatCollection<View>& col) {
+  int key_width(const Grouped<View>& col) {
     int w = static_cast<int>(std::string(View::label).size()) + 2;
     for (const auto& s : col.stats)
       w = std::max(w, static_cast<int>(s->key.size()) + 2);
@@ -119,12 +119,49 @@ namespace slurm {
 
   /*
    *
+   *                  Row color policies
+   *
+   * Each View specialization picks the right color function for its entry type.
+   * Primary template is left undefined — any unspecialized View fails at link time.
+   *
+   */
+
+  template<typename View> struct RowColor;
+
+  template<> struct RowColor<aggregate::AccountView> {
+    static std::string apply(const std::string& row, const sptr_agg<aggregate::AccountView>& s) {
+      return row_color(row, s->jstates[JobStates::RUNNING], s->jstates[JobStates::PENDING], s->njobs);
+    }
+  };
+
+  template<> struct RowColor<aggregate::UserView> {
+    static std::string apply(const std::string& row, const sptr_agg<aggregate::UserView>& s) {
+      return row_color(row, s->jstates[JobStates::RUNNING], s->jstates[JobStates::PENDING], s->njobs);
+    }
+  };
+
+  template<> struct RowColor<aggregate::PartitionView> {
+    static std::string apply(const std::string& row, const sptr_agg<aggregate::PartitionView>& s) {
+      return row_color(row, s->jstates[JobStates::RUNNING], s->jstates[JobStates::PENDING], s->njobs);
+    }
+  };
+
+  template<> struct RowColor<aggregate::NodeView> {
+    static std::string apply(const std::string& row, const sptr_agg<aggregate::NodeView>& s) {
+      int used  = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_used  : s->cpu_alloc;
+      int total = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_total : s->cpu_total;
+      return util_color(row, used, total);
+    }
+  };
+
+  /*
+   *
    *                  Printers
    *
    */
 
   template<typename View>
-  std::ostream& print_stats(std::ostream& outs, const StatCollection<View>& col) {
+  std::ostream& print_job_groups(std::ostream& outs, const Grouped<View>& col) {
     const auto& cols = View::columns();
     int kw  = key_width(col);
     auto hdr = render_header(cols, kw);
@@ -134,8 +171,7 @@ namespace slurm {
       std::ostringstream oss;
       for (const auto& c : cols)
         oss << std::left << std::setw(c.id == ColumnID::Key ? kw : c.width) << c.extract(s);
-      outs << row_color(oss.str(), s->jstates[JobStates::RUNNING],
-                        s->jstates[JobStates::PENDING], s->njobs) << "\n";
+      outs << RowColor<View>::apply(oss.str(), s) << "\n";
     }
     outs << hdr << "\n";
 
@@ -143,15 +179,15 @@ namespace slurm {
   }
 
   // Two-level render: each account row followed by its per-user breakdown.
-  inline void print_expanded(std::ostream& out, const AccountStats& accounts, const Jobs& all_jobs) {
+  inline void print_job_groups_expanded(std::ostream& out, const AccountGroups& accounts, const Jobs& all_jobs) {
     // Group jobs by account for sub-aggregation (one pass).
     std::unordered_map<std::string, Jobs> by_account;
     by_account.reserve(accounts.stats.size());
     for (const auto& job : all_jobs)
       by_account[job.account].push_back(job);
 
-    const auto& acc_cols = by::AccountView::columns();
-    const auto& usr_cols = by::UserView::columns();
+    const auto& acc_cols = aggregate::AccountView::columns();
+    const auto& usr_cols = aggregate::UserView::columns();
 
     /* The way I want this table to work is
      * ACCOUNT      TOTAL   RUNNING   PENDING SUSPENDED  STOPPED
@@ -194,15 +230,14 @@ namespace slurm {
           if (c.id == ColumnID::Key) oss << std::left << std::setw(kw)      << c.extract(s);
           else                       oss << std::left << std::setw(c.width) << c.extract(s);
         }
-        out << row_color(oss.str(), s->jstates[JobStates::RUNNING],
-                         s->jstates[JobStates::PENDING], s->njobs) << "\n";
+        out << RowColor<aggregate::AccountView>::apply(oss.str(), s) << "\n";
       }
       // User sub-rows — numbers at visual column kw + user_indent.
       auto it = by_account.find(s->key);
       if (it != by_account.end()) {
-        StatCollection<by::UserView> user_stats(it->second);
+        Grouped<aggregate::UserView> user_stats(it->second);
         std::sort(user_stats.begin(), user_stats.end(),
-                  [](const sptr_stat<by::UserView>& a, const sptr_stat<by::UserView>& b) {
+                  [](const sptr_agg<aggregate::UserView>& a, const sptr_agg<aggregate::UserView>& b) {
                     return a->jstates[JobStates::RUNNING] > b->jstates[JobStates::RUNNING];
                   });
         for (const auto& u : user_stats) {
@@ -214,15 +249,14 @@ namespace slurm {
           oss << std::left << std::setw(kw-4) << indented;
           for (size_t i = 1; i < usr_cols.size(); ++i)
             oss << std::right << std::setw(usr_cols[i].width) << usr_cols[i].extract(u);
-          out << row_color(oss.str(), u->jstates[JobStates::RUNNING],
-                           u->jstates[JobStates::PENDING], u->njobs) << "\n";
+          out << RowColor<aggregate::UserView>::apply(oss.str(), u) << "\n";
         }
       }
     }
     out << hdr << "\n";
   }
 
-  inline void print_jobs(std::ostream& out, const Jobs& jobs, const by::JobsView&) {
+  inline void print_job_list(std::ostream& out, const Jobs& jobs, const aggregate::JobsView&) {
     if (jobs.empty()) return;
 
     // KPI block: CPU and GPU job counts by state.
@@ -249,7 +283,7 @@ namespace slurm {
       out << util_color(tot.str(), cpu_run + gpu_run, total) << "\n\n";
     }
 
-    const auto& cols = by::JobsView::columns();
+    const auto& cols = aggregate::JobsView::columns();
     auto widths = compute_widths(cols, jobs);
     std::string hdr = render_header(cols, widths);
 
@@ -259,11 +293,11 @@ namespace slurm {
     out << hdr << "\n";
   }
 
-  inline void print_nodes(std::ostream& out, const NodeStats& summaries) {
+  inline void print_node_groups(std::ostream& out, const NodeGroups& summaries) {
     bool has_gpus = std::any_of(summaries.begin(), summaries.end(),
                                 [](const auto& s) { return s->gpu_total > 0; });
 
-    const auto& cols = by::NodeView::columns();
+    const auto& cols = aggregate::NodeView::columns();
 
     auto is_gpu_col = [](ColumnID id) {
       return id == ColumnID::GresTotal || id == ColumnID::GresUsed;
@@ -296,18 +330,16 @@ namespace slurm {
       out << util_color(kpi.str(), kpi_cpu_use, kpi_cpu_tot) << "\n\n";
     }
 
-    std::string hdr = render([](const StatColumn<by::NodeView>& c) { return c.label; });
+    std::string hdr = render([](const AggColumn<aggregate::NodeView>& c) { return c.label; });
     out << hdr << "\n";
 
     for (const auto& s : summaries) {
-      std::string row = render([&](const StatColumn<by::NodeView>& c) { return c.extract(s); });
-      int used  = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_used  : s->cpu_alloc;
-      int total = (s->cpu_total == 0 && s->gpu_total > 0) ? s->gpu_total : s->cpu_total;
-      out << util_color(row, used, total) << "\n";
+      std::string row = render([&](const AggColumn<aggregate::NodeView>& c) { return c.extract(s); });
+      out << RowColor<aggregate::NodeView>::apply(row, s) << "\n";
     }
 
     out << hdr << "\n";
   }
 
 } // namespace slurm
-#endif // SLURM_STATS_H
+#endif // SLURM_RENDER_H

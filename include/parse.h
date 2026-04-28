@@ -1,13 +1,12 @@
-#ifndef SLURM_PARSERS_H
-#define SLURM_PARSERS_H
+#ifndef SLURM_PARSE_H
+#define SLURM_PARSE_H
 
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "columns.h"
-#include "nodes.h"
+#include "column.h"
 
 #ifdef WITH_JSON_INPUT
 #include <nlohmann/json.hpp>
@@ -19,19 +18,19 @@ namespace slurm {
 
     static const std::vector<JobColumn>& columns() {
       static const std::vector<JobColumn> cols = {
-        jcol_id,
-        jcol_partition,
-        jcol_name,
-        jcol_user,
-        jcol_account,
-        jcol_state,
-        jcol_time,
-        jcol_tlim,
-        jcol_nodes,
-        jcol_reason,
-        jcol_cpus,
-        jcol_gres,
-        jcol_mem
+        job::col_id,
+        job::col_partition,
+        job::col_name,
+        job::col_user,
+        job::col_account,
+        job::col_state,
+        job::col_time,
+        job::col_tlim,
+        job::col_nodes,
+        job::col_reason,
+        job::col_cpus,
+        job::col_gres,
+        job::col_mem
       };
       return cols;
     }
@@ -77,12 +76,12 @@ namespace slurm {
 
     static const std::vector<NodeColumn>& columns() {
       static const std::vector<NodeColumn> cols = {
-        ncol_partition,
-        ncol_nodes,
-        ncol_cpus_state,
-        ncol_gres,
-        ncol_gres_used,
-        ncol_state
+        node::col_partition,
+        node::col_nodes,
+        node::col_cpus_state,
+        node::col_gres,
+        node::col_gres_used,
+        node::col_state
       };
       return cols;
     }
@@ -183,4 +182,4 @@ namespace slurm {
 #endif // WITH_JSON_INPUT
 
 } // namespace slurm
-#endif // SLURM_PARSERS_H
+#endif // SLURM_PARSE_H

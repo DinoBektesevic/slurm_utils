@@ -1,5 +1,5 @@
-#ifndef SLURM_JOBS_H
-#define SLURM_JOBS_H
+#ifndef SLURM_JOB_H
+#define SLURM_JOB_H
 
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "utils.h"
+#include "util.h"
 
 namespace slurm {
 
@@ -80,4 +80,4 @@ namespace slurm {
   };
 
 } // namespace slurm
-#endif // SLURM_JOBS_H
+#endif // SLURM_JOB_H

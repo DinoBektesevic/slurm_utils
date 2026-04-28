@@ -1,5 +1,5 @@
-#ifndef SLURM_UTILS_H
-#define SLURM_UTILS_H
+#ifndef SLURM_UTIL_H
+#define SLURM_UTIL_H
 
 #include <optional>
 #include <string>
@@ -27,4 +27,4 @@ namespace slurm::utils {
                         TruncSide side = TruncSide::Right );
 
 } // namespace slurm::utils
-#endif // SLURM_UTILS_H
+#endif // SLURM_UTIL_H
